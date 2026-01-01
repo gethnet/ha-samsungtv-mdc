@@ -4,9 +4,11 @@ Custom Home Assistant integration for Samsung commercial displays that support t
 
 ## Features
 - Media Player entity (power, mute, volume set, input/source selection)
+- Backlight (manual lamp) and color temperature controls
 - Remote entity that forwards Home Assistant `remote.send_command` calls as MDC virtual remote keys
 - Config Flow UI (no YAML) with optional TLS PIN for secured MDC
 - Periodic polling with configurable interval and timeout
+- Ticker overlay helper (scrolling message on the display)
 
 ## Installation
 1. Copy the `samsungtv_mdc` folder into your Home Assistant `custom_components` directory.
@@ -39,6 +41,36 @@ Custom Home Assistant integration for Samsung commercial displays that support t
       - power
       - volume_up
   ```
+
+### Backlight / Color Temperature
+```yaml
+service: media_player.set_backlight
+target:
+  entity_id: media_player.lobby_display
+data:
+  brightness: 75
+```
+
+```yaml
+service: media_player.set_color_temperature
+target:
+  entity_id: media_player.lobby_display
+data:
+  color_temperature: 50  # hectoKelvin, e.g. 50 -> 5000K
+```
+
+### Ticker Overlay
+```yaml
+service: media_player.send_ticker
+target:
+  entity_id: media_player.lobby_display
+data:
+  message: "Meeting starts in 5 minutes"
+  position_horizontal: left
+  motion_on: true
+  motion_direction: right
+  motion_speed: slow
+```
 
 ## Testing
 Install test dependencies with `pip install -r requirements_test.txt` and run:

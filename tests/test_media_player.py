@@ -5,6 +5,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
+
+pytest.importorskip("pytest_homeassistant_custom_component")
+pytest.importorskip("homeassistant")
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.const import CONF_HOST, CONF_PORT
@@ -47,6 +50,9 @@ async def test_media_player_and_remote_commands(hass):
     client.async_mute = AsyncMock()
     client.async_set_source = AsyncMock()
     client.async_send_keys = AsyncMock()
+    client.async_set_manual_lamp = AsyncMock()
+    client.async_set_color_temperature = AsyncMock()
+    client.async_set_ticker = AsyncMock()
 
     with patch("samsungtv_mdc.__init__.SamsungMDCClient", return_value=client):
         entry.add_to_hass(hass)
@@ -80,6 +86,30 @@ async def test_media_player_and_remote_commands(hass):
         blocking=True,
     )
     await hass.services.async_call(
+        "media_player",
+        "set_backlight",
+        {"entity_id": media_player_entity_id, "brightness": 80},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        "media_player",
+        "set_color_temperature",
+        {"entity_id": media_player_entity_id, "color_temperature": 50},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        "media_player",
+        "send_ticker",
+        {
+            "entity_id": media_player_entity_id,
+            "message": "Hello",
+            "position_horizontal": "left",
+            "motion_on": True,
+            "motion_direction": "right",
+        },
+        blocking=True,
+    )
+    await hass.services.async_call(
         "remote",
         "send_command",
         {"entity_id": remote_entity_id, "command": ["power"]},
@@ -89,6 +119,9 @@ async def test_media_player_and_remote_commands(hass):
     client.async_set_power.assert_called_with(POWER.POWER_STATE.ON)
     client.async_set_volume.assert_called()
     client.async_set_source.assert_called()
+    client.async_set_manual_lamp.assert_called_with(80)
+    client.async_set_color_temperature.assert_called_with(50)
+    client.async_set_ticker.assert_called()
     client.async_send_keys.assert_called_once()
     sent_keys = client.async_send_keys.call_args[0][0]
     assert list(sent_keys)[0] == VIRTUAL_REMOTE.KEY_CODE.KEY_POWER

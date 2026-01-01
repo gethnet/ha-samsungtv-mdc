@@ -5,6 +5,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+pytest.importorskip("pytest_homeassistant_custom_component")
+pytest.importorskip("homeassistant")
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT

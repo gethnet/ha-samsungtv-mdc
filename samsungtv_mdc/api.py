@@ -5,10 +5,20 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import time
 from typing import Iterable
 
 from samsung_mdc import MDC
-from samsung_mdc.commands import INPUT_SOURCE, MUTE, POWER, VIRTUAL_REMOTE, PICTURE_ASPECT
+from samsung_mdc.commands import (
+    COLOR_TEMPERATURE,
+    INPUT_SOURCE,
+    MANUAL_LAMP,
+    MUTE,
+    PICTURE_ASPECT,
+    POWER,
+    TICKER,
+    VIRTUAL_REMOTE,
+)
 from samsung_mdc.exceptions import MDCError, MDCTLSAuthFailed, MDCTLSRequired
 
 from .const import DEFAULT_PORT, DEFAULT_TIMEOUT
@@ -50,6 +60,26 @@ class SamsungMDCDeviceInfo:
     model: str | None
     serial: str | None
     software_version: str | None
+
+
+@dataclass(slots=True)
+class SamsungMDCTicker:
+    """Ticker configuration."""
+
+    on: bool
+    start_time: time
+    end_time: time
+    position_horizontal: TICKER.POS_HORIZ
+    position_vertical: TICKER.POS_VERTI
+    motion_on: bool
+    motion_direction: TICKER.MOTION_DIR
+    motion_speed: TICKER.MOTION_SPEED
+    font_size: TICKER.FONT_SIZE
+    foreground_color: TICKER.FOREGROUND_COLOR
+    background_color: TICKER.BACKGROUND_COLOR
+    foreground_opacity: TICKER.FOREGROUND_OPACITY
+    background_opacity: TICKER.BACKGROUND_OPACITY
+    message: str
 
 
 class SamsungMDCClient:
@@ -120,6 +150,8 @@ class SamsungMDCClient:
     async def async_set_power(self, state: POWER.POWER_STATE) -> None:
         """Set power."""
         await self._execute(self._mdc.power, [state])
+        # Power commands often drop connections; close so future calls reconnect.
+        await self.async_close()
 
     async def async_set_volume(self, volume: int) -> None:
         """Set volume 0-100."""
@@ -140,6 +172,36 @@ class SamsungMDCClient:
         """Send virtual remote keys."""
         for key in keys:
             await self._execute(self._mdc.virtual_remote, [key])
+
+    async def async_set_manual_lamp(self, value: int) -> None:
+        """Set manual lamp/backlight 0-100."""
+        await self._execute(self._mdc.manual_lamp, [value])
+
+    async def async_set_color_temperature(self, hecto_kelvin: int) -> None:
+        """Set color temperature in hectoKelvin."""
+        await self._execute(self._mdc.color_temperature, [hecto_kelvin])
+
+    async def async_set_ticker(self, ticker: SamsungMDCTicker) -> None:
+        """Configure ticker overlay."""
+        await self._execute(
+            self._mdc.ticker,
+            [
+                ticker.on,
+                ticker.start_time,
+                ticker.end_time,
+                ticker.position_horizontal,
+                ticker.position_vertical,
+                ticker.motion_on,
+                ticker.motion_direction,
+                ticker.motion_speed,
+                ticker.font_size,
+                ticker.foreground_color,
+                ticker.background_color,
+                ticker.foreground_opacity,
+                ticker.background_opacity,
+                ticker.message,
+            ],
+        )
 
     async def async_get_device_info(self) -> SamsungMDCDeviceInfo:
         """Fetch and cache device metadata."""
