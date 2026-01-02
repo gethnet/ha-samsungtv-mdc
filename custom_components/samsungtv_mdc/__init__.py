@@ -37,6 +37,7 @@ from .coordinator import SamsungMDCDataUpdateCoordinator, SamsungMDCDevice
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.MEDIA_PLAYER,
     Platform.NUMBER,
     Platform.SENSOR,
 ]

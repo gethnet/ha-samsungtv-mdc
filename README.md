@@ -6,12 +6,11 @@ Custom integration for Samsung commercial displays that speak the MDC (Multiple 
 Portions of this integration were authored with assistance from AI coding tools (LLMs) under human review. All generated content has been inspected, integrated, and tested for correctness and licensing compliance.
 
 ## Features
-- Media Player entity (power, mute, volume set, input/source selection)
-- Backlight (manual lamp) and color temperature controls
+- Media Player entity (power, mute, volume set/step, input/source selection)
+- Backlight (manual lamp) and color temperature number controls
 - Ticker overlay helper (scrolling message on the display)
-- Remote entity forwarding `remote.send_command` to MDC virtual remote keys
 - Config Flow (no YAML) with optional TLS PIN for secured MDC
-- Polling interval and command timeout configurable per entry
+- Polling interval configurable per entry (5–15 minutes) with automatic reconnection after MDC timeouts
 
 ## Installation
 ### HACS (recommended)
@@ -35,40 +34,44 @@ Portions of this integration were authored with assistance from AI coding tools 
 | Name | Friendly name for the entities |
 
 ### Options
-- **Update interval** (seconds)
-- **Command timeout** (seconds)
+- **Update interval** (minutes, 5–15)
 
 ## Services & Examples
-**Backlight / Color temperature**
+- **Power and source**
 ```yaml
-service: media_player.set_backlight
+service: media_player.turn_on
 target: {entity_id: media_player.lobby_display}
-data: {brightness: 75}
 ```
 
 ```yaml
-service: media_player.set_color_temperature
+service: media_player.select_source
 target: {entity_id: media_player.lobby_display}
-data: {color_temperature: 50}  # hectoKelvin, e.g. 50 -> 5000K
+data: {source: "HDMI 2"}
 ```
 
-**Ticker overlay**
+- **Volume and mute**
 ```yaml
-service: media_player.send_ticker
+service: media_player.volume_set
 target: {entity_id: media_player.lobby_display}
+data: {volume_level: 0.35}
+```
+
+```yaml
+service: media_player.mute_volume
+target: {entity_id: media_player.lobby_display}
+data: {is_volume_muted: true}
+```
+
+- **Ticker overlay**
+```yaml
+service: samsungtv_mdc.set_ticker
+target: {entity_id: sensor.lobby_display_ticker}
 data:
   message: "Meeting starts in 5 minutes"
-  position_horizontal: left
+  pos_horiz: left
   motion_on: true
-  motion_direction: right
+  motion_dir: right
   motion_speed: slow
-```
-
-**Virtual remote**
-```yaml
-service: remote.send_command
-target: {entity_id: remote.lobby_display_remote}
-data: {command: ["power", "volume_up"]}
 ```
 
 ## Troubleshooting

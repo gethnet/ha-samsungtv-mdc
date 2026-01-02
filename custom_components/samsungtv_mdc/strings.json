@@ -44,6 +44,11 @@
         "name": "Manual lamp"
       }
     },
+    "media_player": {
+      "display": {
+        "name": "Display"
+      }
+    },
     "sensor": {
       "ticker": {
         "name": "Ticker message"

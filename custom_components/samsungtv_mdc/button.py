@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -26,6 +27,7 @@ class SamsungMDCRefreshButton(SamsungMDCEntity, ButtonEntity):
     """Button to trigger immediate refresh."""
 
     _attr_translation_key = "refresh"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator, device_id: str) -> None:
         """Initialize refresh button."""

@@ -34,6 +34,9 @@ class SamsungMDCState:
     """Collected state from MDC."""
 
     power: commands.POWER.POWER_STATE
+    volume: int | None
+    mute: commands.MUTE.MUTE_STATE | None
+    input_source: commands.INPUT_SOURCE.INPUT_SOURCE_STATE | None
     manual_lamp: int
     color_temperature_hk: int
     ticker: tuple[Any, ...]
@@ -55,9 +58,11 @@ class SamsungMDCDevice:
         timeout: float,
     ) -> None:
         """Initialize MDC device wrapper."""
-        target = host if port == DEFAULT_PORT else f"{host}:{port}"
+        self._target = host if port == DEFAULT_PORT else f"{host}:{port}"
         self.display_id = display_id
-        self._client = MDC(target, timeout=timeout, pin=pin)
+        self._pin = pin
+        self._timeout = timeout
+        self._client = MDC(self._target, timeout=timeout, pin=pin)
         self._lock = asyncio.Lock()
 
     async def async_close(self) -> None:
@@ -66,6 +71,31 @@ class SamsungMDCDevice:
             if self._client.writer is None:
                 return
             await self._client.close()
+
+    async def async_set_power(self, state: commands.POWER.POWER_STATE) -> None:
+        """Set display power state."""
+        await self._call("power", [state])
+
+    async def async_set_volume(self, volume: int) -> None:
+        """Set display volume (0-100)."""
+        await self._call("volume", [volume])
+
+    async def async_volume_step(
+        self, direction: commands.VOLUME_CHANGE.CHANGE_TO
+    ) -> None:
+        """Step volume up/down."""
+        await self._call("volume_change", [direction])
+
+    async def async_set_mute(self, muted: bool) -> None:
+        """Set mute state."""
+        state = commands.MUTE.MUTE_STATE.ON if muted else commands.MUTE.MUTE_STATE.OFF
+        await self._call("mute", [state])
+
+    async def async_set_input_source(
+        self, source: commands.INPUT_SOURCE.INPUT_SOURCE_STATE
+    ) -> None:
+        """Set input source."""
+        await self._call("input_source", [source])
 
     async def async_status(self) -> tuple[Any, ...]:
         """Fetch basic status."""
@@ -113,10 +143,31 @@ class SamsungMDCDevice:
 
     async def _call(self, command: str, data: list[Any] | None = None) -> Any:
         async with self._lock:
-            method = getattr(self._client, command)
-            if data is None:
-                return await method(self.display_id)
-            return await method(self.display_id, data)
+            try:
+                return await self._invoke(command, data)
+            except (
+                MDCTimeoutError,
+                MDCReadTimeoutError,
+                MDCResponseError,
+                OSError,
+                ConnectionError,
+            ):
+                await self._reset_client()
+                return await self._invoke(command, data)
+
+    async def _invoke(self, command: str, data: list[Any] | None) -> Any:
+        method = getattr(self._client, command)
+        if data is None:
+            return await method(self.display_id)
+        return await method(self.display_id, data)
+
+    async def _reset_client(self) -> None:
+        """Recreate MDC client after a connection failure."""
+        try:
+            if self._client.writer is not None:
+                await self._client.close()
+        finally:
+            self._client = MDC(self._target, timeout=self._timeout, pin=self._pin)
 
 
 class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
@@ -160,8 +211,24 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         ) as err:
             raise UpdateFailed(err) from err
 
+        power_state, volume, mute_state, input_source, *_ = status
+        parsed_volume = None if volume == 255 else int(volume)
+        parsed_mute: commands.MUTE.MUTE_STATE | None
+        if mute_state == commands.MUTE.MUTE_STATE.NONE:
+            parsed_mute = None
+        else:
+            parsed_mute = mute_state
+        parsed_source: commands.INPUT_SOURCE.INPUT_SOURCE_STATE | None
+        if input_source == commands.INPUT_SOURCE.INPUT_SOURCE_STATE.NONE:
+            parsed_source = None
+        else:
+            parsed_source = input_source
+
         return SamsungMDCState(
-            power=status[0],
+            power=power_state,
+            volume=parsed_volume,
+            mute=parsed_mute,
+            input_source=parsed_source,
             manual_lamp=manual_lamp[0],
             color_temperature_hk=color_temp[0],
             ticker=ticker,
