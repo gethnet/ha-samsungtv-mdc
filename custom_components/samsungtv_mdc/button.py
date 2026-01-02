@@ -27,6 +27,7 @@ class SamsungMDCRefreshButton(SamsungMDCEntity, ButtonEntity):
     """Button to trigger immediate refresh."""
 
     _attr_translation_key = "refresh"
+    _attr_name = "Refresh now"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator, device_id: str) -> None:

@@ -38,10 +38,10 @@
     },
     "number": {
       "color_temperature": {
-        "name": "Color temperature"
+        "name": "Display color temperature"
       },
       "manual_lamp": {
-        "name": "Manual lamp"
+        "name": "Display backlight"
       }
     },
     "media_player": {

@@ -30,6 +30,7 @@ class SamsungMDCTickerSensor(SamsungMDCEntity, SensorEntity):
     """Sensor representing ticker message and configuration."""
 
     _attr_translation_key = "ticker"
+    _attr_name = "Ticker message"
 
     def __init__(
         self, coordinator: SamsungMDCDataUpdateCoordinator, device_id: str

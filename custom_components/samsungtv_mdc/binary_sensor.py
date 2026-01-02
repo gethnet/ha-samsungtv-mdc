@@ -28,6 +28,7 @@ class SamsungMDCPowerBinarySensor(SamsungMDCEntity, BinarySensorEntity):
     """Binary sensor tracking display power state."""
 
     _attr_translation_key = "power"
+    _attr_name = "Power"
 
     def __init__(self, coordinator, device_id: str) -> None:
         """Initialize power binary sensor."""

@@ -78,6 +78,7 @@ class SamsungMDCMediaPlayer(SamsungMDCEntity, MediaPlayerEntity):
     _attr_device_class = MediaPlayerDeviceClass.TV
     _attr_supported_features = SUPPORTED_FEATURES
     _attr_translation_key = "display"
+    _attr_name = "Display"
 
     def __init__(
         self,

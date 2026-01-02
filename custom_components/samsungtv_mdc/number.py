@@ -46,6 +46,7 @@ class SamsungMDCManualLampNumber(_MDCBaseNumber):
     """Number controlling manual lamp (backlight)."""
 
     _attr_translation_key = "manual_lamp"
+    _attr_name = "Display backlight"
     _attr_native_min_value = 1
     _attr_native_max_value = 100
     _attr_native_step = 1
@@ -76,6 +77,7 @@ class SamsungMDCColorTemperatureNumber(_MDCBaseNumber):
     """Number controlling color temperature."""
 
     _attr_translation_key = "color_temperature"
+    _attr_name = "Display color temperature"
     _attr_native_min_value = 2800
     _attr_native_max_value = 16000
     _attr_native_step = 100
