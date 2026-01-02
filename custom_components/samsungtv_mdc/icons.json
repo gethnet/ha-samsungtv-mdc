@@ -1,0 +1,7 @@
+{
+  "services": {
+    "set_ticker": {
+      "service": "mdi:message-text-outline"
+    }
+  }
+}

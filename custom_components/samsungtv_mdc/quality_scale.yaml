@@ -2,16 +2,16 @@ rules:
   # Bronze
   action-setup: done
   appropriate-polling: done
-  brands: todo
-  common-modules: todo
+  brands: done
+  common-modules: done
   config-flow-test-coverage: done
   config-flow: done
   dependency-transparency: done
-  docs-actions: todo
+  docs-actions: done
   docs-high-level-description: done
   docs-installation-instructions: done
-  docs-removal-instructions: todo
-  entity-event-setup: todo
+  docs-removal-instructions: done
+  entity-event-setup: done
   entity-unique-id: done
   has-entity-name: done
   runtime-data: done

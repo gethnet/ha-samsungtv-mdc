@@ -1,69 +1,61 @@
-# Samsung MDC Home Assistant Integration
+# Samsung TV MDC for Home Assistant
 
-Custom Home Assistant integration for Samsung commercial displays that support the MDC (Multiple Display Control) protocol. It uses the [`python-samsung-mdc`](https://pypi.org/project/python-samsung-mdc/) library to power on/off, change inputs, adjust volume, and send virtual remote key presses over Ethernet.
+Custom integration for Samsung commercial displays that speak the MDC (Multiple Display Control) protocol. It uses the [`python-samsung-mdc`](https://pypi.org/project/python-samsung-mdc/) library to provide reliable power, input/source, volume/mute, backlight, color temperature, and ticker overlay control over TCP.
+
+## AI/LLM Notice
+Portions of this integration were authored with assistance from AI coding tools (LLMs) under human review. All generated content has been inspected, integrated, and tested for correctness and licensing compliance.
 
 ## Features
 - Media Player entity (power, mute, volume set, input/source selection)
 - Backlight (manual lamp) and color temperature controls
-- Remote entity that forwards Home Assistant `remote.send_command` calls as MDC virtual remote keys
-- Config Flow UI (no YAML) with optional TLS PIN for secured MDC
-- Periodic polling with configurable interval and timeout
 - Ticker overlay helper (scrolling message on the display)
+- Remote entity forwarding `remote.send_command` to MDC virtual remote keys
+- Config Flow (no YAML) with optional TLS PIN for secured MDC
+- Polling interval and command timeout configurable per entry
 
 ## Installation
-1. Copy the `samsungtv_mdc` folder into your Home Assistant `custom_components` directory.
+### HACS (recommended)
+1. In HACS, add this repository as a **Custom Repository** (category: Integration).
+2. Install **Samsung TV MDC**.
+3. Restart Home Assistant.
+4. Add the integration via **Settings → Devices & Services → Add Integration → Samsung TV MDC**.
+
+### Manual
+1. Copy `custom_components/samsungtv_mdc` into your Home Assistant `config/custom_components` directory.
 2. Restart Home Assistant.
-3. In **Settings → Devices & Services**, click **Add Integration**, search for **SamsungTV MDC**, and follow the prompts.
+3. Add the integration through the UI as above.
 
 ## Configuration
 | Field | Description |
 | --- | --- |
-| Host | IP or hostname of the display (TCP MDC port 1515 by default) |
-| Port | MDC port, defaults to 1515 |
-| Display ID | MDC display ID (commonly 0 or 1) |
-| TLS PIN | Optional 4‑digit PIN when Secure MDC is enabled |
-| Name | Friendly name used for the entities |
+| Host | IP/hostname of the display (MDC TCP port 1515 by default) |
+| Port | MDC port (default `1515`) |
+| Display ID | MDC display ID (commonly `0` or `1`) |
+| TLS PIN | Optional 4‑digit PIN if Secure MDC is enabled |
+| Name | Friendly name for the entities |
 
 ### Options
-- **Update interval**: how often to poll status (seconds)
-- **Command timeout**: per-command timeout (seconds)
+- **Update interval** (seconds)
+- **Command timeout** (seconds)
 
-## Usage
-- Control power/volume/source via the created media player entity.
-- Send remote key codes with `remote.send_command`. Commands accept either `KEY_POWER` style strings or friendly names like `power`, `volume_up`, etc.
-- Example service call:
-  ```yaml
-  service: remote.send_command
-  target:
-    entity_id: remote.lobby_display_remote
-  data:
-    command:
-      - power
-      - volume_up
-  ```
-
-### Backlight / Color Temperature
+## Services & Examples
+**Backlight / Color temperature**
 ```yaml
 service: media_player.set_backlight
-target:
-  entity_id: media_player.lobby_display
-data:
-  brightness: 75
+target: {entity_id: media_player.lobby_display}
+data: {brightness: 75}
 ```
 
 ```yaml
 service: media_player.set_color_temperature
-target:
-  entity_id: media_player.lobby_display
-data:
-  color_temperature: 50  # hectoKelvin, e.g. 50 -> 5000K
+target: {entity_id: media_player.lobby_display}
+data: {color_temperature: 50}  # hectoKelvin, e.g. 50 -> 5000K
 ```
 
-### Ticker Overlay
+**Ticker overlay**
 ```yaml
 service: media_player.send_ticker
-target:
-  entity_id: media_player.lobby_display
+target: {entity_id: media_player.lobby_display}
 data:
   message: "Meeting starts in 5 minutes"
   position_horizontal: left
@@ -72,8 +64,16 @@ data:
   motion_speed: slow
 ```
 
-## Testing
-Install test dependencies with `pip install -r requirements_test.txt` and run:
-```bash
-pytest
+**Virtual remote**
+```yaml
+service: remote.send_command
+target: {entity_id: remote.lobby_display_remote}
+data: {command: ["power", "volume_up"]}
 ```
+
+## Troubleshooting
+- If commands stop working after power toggles, the integration automatically reconnects; wait a few seconds for the next poll or trigger `Reload` on the config entry.
+- Ensure the display’s MDC port and display ID match your settings; some models default to display ID `1`.
+
+## License
+MIT License (see `LICENSE`).

@@ -1,19 +1,16 @@
 {
   "domain": "samsungtv_mdc",
-  "name": "SamsungTV MDC",
-  "codeowners": [
-    "@amwdrizz"
-  ],
+  "name": "Samsung TV MDC",
+  "codeowners": ["@amwdrizz"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/amwdrizz/HA_SamsungMDC",
   "homekit": {},
+  "integration_type": "device",
   "iot_class": "local_polling",
   "quality_scale": "bronze",
-  "requirements": [
-    "python-samsung-mdc==1.17.0"
-  ],
+  "requirements": ["python-samsung-mdc==1.17.0"],
   "ssdp": [],
-  "version": "0.1.1",
+  "version": "0.2.0",
   "zeroconf": []
 }

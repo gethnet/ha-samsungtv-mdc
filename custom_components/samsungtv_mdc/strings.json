@@ -1,0 +1,137 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    },
+    "error": {
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "display_id": "Display ID",
+          "host": "[%key:common::config_flow::data::host%]",
+          "pin": "PIN (optional)",
+          "port": "[%key:common::config_flow::data::port%]"
+        },
+        "data_description": {
+          "display_id": "Display ID reported by the display (often 0 or 1).",
+          "host": "Host or IP address of the display.",
+          "pin": "4-digit PIN for secured TLS (if enabled on the display).",
+          "port": "Port used for MDC (default 1515)."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "power": {
+        "name": "Power"
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Refresh now"
+      }
+    },
+    "number": {
+      "color_temperature": {
+        "name": "Color temperature"
+      },
+      "manual_lamp": {
+        "name": "Manual lamp"
+      }
+    },
+    "sensor": {
+      "ticker": {
+        "name": "Ticker message"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Update interval (minutes)"
+        },
+        "data_description": {
+          "scan_interval": "Minutes between updates (5-15)."
+        }
+      }
+    }
+  },
+  "services": {
+    "set_ticker": {
+      "description": "Update ticker text and configuration on the display. Omitted fields reuse the current ticker configuration. Target the ticker sensor or display device, or provide a config entry.",
+      "fields": {
+        "background_color": {
+          "description": "Ticker background color. Uses the current value when omitted.",
+          "name": "Background color"
+        },
+        "background_opacity": {
+          "description": "Ticker background opacity. Uses the current value when omitted.",
+          "name": "Background opacity"
+        },
+        "config_entry_id": {
+          "description": "Samsung MDC config entry ID. Only needed when not targeting a ticker sensor.",
+          "name": "Config entry"
+        },
+        "device_id": {
+          "description": "Samsung MDC display device. Only needed when not targeting a ticker sensor.",
+          "name": "Device"
+        },
+        "end_time": {
+          "description": "End time in HH:MM. Defaults to about one to two minutes after start time based on message length.",
+          "name": "End time"
+        },
+        "font_size": {
+          "description": "Ticker font size. Uses the current value when omitted.",
+          "name": "Font size"
+        },
+        "foreground_color": {
+          "description": "Ticker foreground color. Uses the current value when omitted.",
+          "name": "Foreground color"
+        },
+        "foreground_opacity": {
+          "description": "Ticker foreground opacity. Uses the current value when omitted.",
+          "name": "Foreground opacity"
+        },
+        "message": {
+          "description": "Ticker message text. Uses the current value when omitted.",
+          "name": "Message"
+        },
+        "motion_dir": {
+          "description": "Ticker movement direction. Uses the current value when omitted.",
+          "name": "Motion direction"
+        },
+        "motion_on": {
+          "description": "Enable ticker motion. Uses the current value when omitted.",
+          "name": "Motion enabled"
+        },
+        "motion_speed": {
+          "description": "Ticker movement speed. Uses the current value when omitted.",
+          "name": "Motion speed"
+        },
+        "on": {
+          "description": "Turn ticker on. Uses the current value when omitted.",
+          "name": "Enabled"
+        },
+        "pos_horiz": {
+          "description": "Horizontal ticker position. Uses the current value when omitted.",
+          "name": "Horizontal position"
+        },
+        "pos_verti": {
+          "description": "Vertical ticker position. Uses the current value when omitted.",
+          "name": "Vertical position"
+        },
+        "start_time": {
+          "description": "Start time in HH:MM. Defaults to a few seconds from now when omitted or in the past.",
+          "name": "Start time"
+        }
+      },
+      "name": "Set ticker"
+    }
+  }
+}

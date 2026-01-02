@@ -1,0 +1,119 @@
+set_ticker:
+  target:
+    entity:
+      domain: sensor
+      integration: samsungtv_mdc
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: samsungtv_mdc
+    config_entry_id:
+      required: false
+      selector:
+        text:
+    "on":
+      required: false
+      selector:
+        boolean:
+    start_time:
+      required: false
+      selector:
+        time:
+    end_time:
+      required: false
+      selector:
+        time:
+    pos_horiz:
+      required: false
+      selector:
+        select:
+          options:
+            - center
+            - left
+            - right
+    pos_verti:
+      required: false
+      selector:
+        select:
+          options:
+            - middle
+            - top
+            - bottom
+    motion_on:
+      required: false
+      selector:
+        boolean:
+    motion_dir:
+      required: false
+      selector:
+        select:
+          options:
+            - left
+            - right
+            - up
+            - down
+    motion_speed:
+      required: false
+      selector:
+        select:
+          options:
+            - normal
+            - slow
+            - fast
+    font_size:
+      required: false
+      selector:
+        select:
+          options:
+            - standard
+            - small
+            - large
+    foreground_color:
+      required: false
+      selector:
+        select:
+          options:
+            - black
+            - white
+            - red
+            - green
+            - blue
+            - yellow
+            - magenta
+            - cyan
+    background_color:
+      required: false
+      selector:
+        select:
+          options:
+            - black
+            - white
+            - red
+            - green
+            - blue
+            - yellow
+            - magenta
+            - cyan
+    foreground_opacity:
+      required: false
+      selector:
+        select:
+          options:
+            - "flashing"
+            - "flash_all"
+            - "off"
+    background_opacity:
+      required: false
+      selector:
+        select:
+          options:
+            - solid
+            - transparent
+            - translucent
+            - unknown
+    message:
+      required: false
+      selector:
+        text:
