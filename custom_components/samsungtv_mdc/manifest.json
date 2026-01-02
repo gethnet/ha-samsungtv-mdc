@@ -4,7 +4,7 @@
   "codeowners": ["@amwdrizz"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/amwdrizz/HA_SamsungMDC",
+  "documentation": "https://github.com/gethnet/ha-samsungtv-mdc",
   "homekit": {},
   "integration_type": "device",
   "iot_class": "local_polling",
