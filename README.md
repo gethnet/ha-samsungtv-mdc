@@ -81,8 +81,9 @@ data:
 ## Development
 - Create a venv and install test deps: `bash scripts/setup-dev.sh`
 - Run tests: `source .venv/bin/activate && pytest`
-- Lint with ruff `source .venv/bin/activate && ruff check . > ruff.check.log`
-- Apply auto fixes from ruff `source .venv/bin/activate && ruff check . --fix > ruff.check.log`
+- Lint with ruff: `source .venv/bin/activate && ruff check . > ruff.check.log`
+- Apply auto fixes from ruff: `source .venv/bin/activate && ruff check . --fix > ruff.check.log`
+- Install pre-commit hooks to lint before commits: `source .venv/bin/activate && pre-commit install`
 
 ## License
 MIT License (see `LICENSE`).
