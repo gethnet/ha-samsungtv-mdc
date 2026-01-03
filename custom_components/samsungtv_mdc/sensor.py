@@ -3,19 +3,24 @@
 from __future__ import annotations
 
 from datetime import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.text import TextEntity
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import SamsungTVMDCConfigEntry
-from .coordinator import SamsungMDCDataUpdateCoordinator, SamsungMDCDevice
 from .entity import SamsungMDCEntity
+
+TICKER_FIELD_COUNT = 14
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from . import SamsungTVMDCConfigEntry
+    from .coordinator import SamsungMDCDataUpdateCoordinator, SamsungMDCDevice
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: SamsungTVMDCConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
@@ -129,7 +134,7 @@ class SamsungMDCTickerMessageText(SamsungMDCEntity, TextEntity):
         if not ticker:
             ticker = await self._device.async_ticker()
         data = list(ticker)
-        if len(data) < 14:
+        if len(data) < TICKER_FIELD_COUNT:
             return
         data[13] = value
         await self._device.async_set_ticker(data)

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import timedelta
-import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from async_timeout import timeout
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from samsung_mdc import MDC, commands
 from samsung_mdc.exceptions import (
     MDCReadTimeoutError,
@@ -17,9 +18,9 @@ from samsung_mdc.exceptions import (
     NAKError,
 )
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_DISPLAY_ID,
@@ -28,6 +29,8 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
+
+UNKNOWN_VOLUME = 255
 
 
 @dataclass
@@ -87,7 +90,7 @@ class SamsungMDCDevice:
         """Step volume up/down."""
         await self._call("volume_change", [direction])
 
-    async def async_set_mute(self, muted: bool) -> None:
+    async def async_set_mute(self, muted: bool) -> None:  # noqa: FBT001
         """Set mute state."""
         state = commands.MUTE.MUTE_STATE.ON if muted else commands.MUTE.MUTE_STATE.OFF
         await self._call("mute", [state])
@@ -201,11 +204,11 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         )
         self.device = device
 
-    async def _async_update_data(self) -> SamsungMDCState:
+    async def _async_update_data(self) -> SamsungMDCState:  # noqa: PLR0912
         errors: list[BaseException] = []
         try:
             async with timeout(self._request_timeout):
-                for attempt in range(3):
+                for _attempt in range(3):
                     try:
                         status = await self.device.async_status()
                         manual_lamp = await self.device.async_manual_lamp()
@@ -233,8 +236,12 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                 else:
                     last_error = errors[-1]
                     if not self._in_retry_mode:
+                        msg = (
+                            "Transient MDC connection error after retries: %s; "
+                            "retrying quickly"
+                        )
                         self.logger.warning(
-                            "Transient MDC connection error after retries: %s; retrying quickly",
+                            msg,
                             last_error,
                         )
                         self._in_retry_mode = True
@@ -244,10 +251,10 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                             "Retrying MDC connection after error: %s", last_error
                         )
                     if self.data is not None:
-                        # Keep entities available with their last known data while retrying.
+                        # Keep entities available using last known data while retrying.
                         return self.data
                     raise UpdateFailed(last_error) from last_error
-        except asyncio.TimeoutError as err:
+        except TimeoutError as err:
             self.logger.warning(
                 "MDC update exceeded %ss timeout; keeping last known state",
                 self._request_timeout,
@@ -257,7 +264,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             raise UpdateFailed(err) from err
 
         power_state, volume, mute_state, input_source, *_ = status
-        parsed_volume = None if volume == 255 else int(volume)
+        parsed_volume = None if volume == UNKNOWN_VOLUME else int(volume)
         parsed_mute: commands.MUTE.MUTE_STATE | None
         if mute_state == commands.MUTE.MUTE_STATE.NONE:
             parsed_mute = None

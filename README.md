@@ -78,5 +78,10 @@ data:
 - If commands stop working after power toggles, the integration automatically reconnects; wait a few seconds for the next poll or trigger `Reload` on the config entry.
 - Ensure the display’s MDC port and display ID match your settings; some models default to display ID `1`.
 
+## Development
+- Create a venv and install test deps: `bash scripts/setup-dev.sh`
+- Run tests: `source .venv/bin/activate && pytest`
+- Run hassfest: `source .venv/bin/activate && python -m hassfest`
+
 ## License
 MIT License (see `LICENSE`).

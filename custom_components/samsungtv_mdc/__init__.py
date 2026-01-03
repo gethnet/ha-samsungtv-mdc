@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from samsung_mdc.commands import TICKER
-from samsung_mdc.exceptions import NAKError
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_HOST, Platform
-from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
@@ -21,8 +16,9 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_config_entry_ids
-from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
+from samsung_mdc.commands import TICKER
+from samsung_mdc.exceptions import NAKError
 
 from .const import (
     CONF_DISPLAY_ID,
@@ -33,6 +29,12 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import SamsungMDCDataUpdateCoordinator, SamsungMDCDevice
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from homeassistant.core import HomeAssistant, ServiceCall
+    from homeassistant.helpers.typing import ConfigType
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -55,9 +57,11 @@ class SamsungTVMDCData:
 type SamsungTVMDCConfigEntry = ConfigEntry[SamsungTVMDCData]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+_MIN_TICKER_FIELDS = 14
+_LONG_MESSAGE_THRESHOLD = 80
 
 
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     """Set up the Samsung MDC integration."""
     _async_register_services(hass)
     return True
@@ -67,7 +71,6 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: SamsungTVMDCConfigEntry
 ) -> bool:
     """Set up Samsung TV MDC from a config entry."""
-
     host = entry.data[CONF_HOST]
     display_id = entry.data[CONF_DISPLAY_ID]
     port = entry.data.get(CONF_PORT, DEFAULT_PORT)
@@ -180,7 +183,9 @@ async def _async_handle_set_ticker(call: ServiceCall) -> None:
     """Handle set ticker service call."""
     entry = await _async_entry_from_call(call)
     runtime = entry.runtime_data
-    assert runtime
+    if runtime is None:
+        msg = "Ticker target is missing or not loaded"
+        raise ServiceValidationError(msg)
     current_ticker = (
         runtime.coordinator.data.ticker or await runtime.device.async_ticker()
     )
@@ -198,10 +203,12 @@ async def _async_entry_from_call(call: ServiceCall) -> SamsungTVMDCConfigEntry:
         entry_ids = await async_extract_config_entry_ids(call, expand_group=True)
 
     if not entry_ids:
-        raise ServiceValidationError("Ticker target is missing or not loaded")
+        msg = "Ticker target is missing or not loaded"
+        raise ServiceValidationError(msg)
 
     if len(entry_ids) > 1:
-        raise ServiceValidationError("Please target a single Samsung MDC display")
+        msg = "Please target a single Samsung MDC display"
+        raise ServiceValidationError(msg)
 
     entry = hass.config_entries.async_get_entry(entry_ids.pop())
 
@@ -210,15 +217,17 @@ async def _async_entry_from_call(call: ServiceCall) -> SamsungTVMDCConfigEntry:
         or entry.domain != DOMAIN
         or entry.state is not ConfigEntryState.LOADED
     ):
-        raise ServiceValidationError("Ticker target is missing or not loaded")
+        msg = "Ticker target is missing or not loaded"
+        raise ServiceValidationError(msg)
 
     return entry
 
 
 def _ticker_data_from_call(call: ServiceCall, ticker: tuple[Any, ...]) -> list[Any]:
     """Convert service call data to ticker payload."""
-    if len(ticker) < 14:
-        raise ServiceValidationError("Ticker configuration is invalid")
+    if len(ticker) < _MIN_TICKER_FIELDS:
+        msg = "Ticker configuration is invalid"
+        raise ServiceValidationError(msg)
 
     data = list(ticker)
     updates = call.data
@@ -281,7 +290,7 @@ def _default_end_time(start_time: Any, message: str) -> Any:
     if not hasattr(start_time, "hour"):
         return start_time
 
-    duration_minutes = 2 if len(message) > 80 else 1
+    duration_minutes = 2 if len(message) > _LONG_MESSAGE_THRESHOLD else 1
     start_dt = _combine_today(start_time)
     end_dt = start_dt + timedelta(minutes=duration_minutes)
     return end_dt.timetz()

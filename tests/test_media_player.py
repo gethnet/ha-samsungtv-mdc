@@ -1,10 +1,11 @@
 """Tests for the Samsung MDC media player entity."""
+# ruff: noqa: S101, FBT001, ANN202
 
 from __future__ import annotations
 
 import pytest
-from samsung_mdc import commands
 from homeassistant.components.media_player import MediaPlayerState
+from samsung_mdc import commands
 
 from custom_components.samsungtv_mdc.coordinator import SamsungMDCState
 from custom_components.samsungtv_mdc.media_player import SamsungMDCMediaPlayer
@@ -19,7 +20,7 @@ class _DummyCoordinator:
         self.refresh_requested = False
         self.hass = None
 
-    def async_add_listener(self, update_callback):
+    def async_add_listener(self, update_callback: object):
         """Return a no-op remove callback."""
         self._update_callback = update_callback
         return lambda: None
@@ -78,8 +79,9 @@ async def test_media_player_controls_and_state() -> None:
     device = _DummyDevice()
     entity = SamsungMDCMediaPlayer(coordinator, "display-1", device)
 
+    expected_volume = 0.5
     assert entity.state == MediaPlayerState.ON
-    assert entity.volume_level == 0.5
+    assert entity.volume_level == expected_volume
     assert entity.is_volume_muted is False
     assert entity.source == "HDMI 1"
     assert "HDMI 2" in entity.source_list
@@ -95,5 +97,8 @@ async def test_media_player_controls_and_state() -> None:
 
     coordinator.refresh_requested = False
     await entity.async_select_source("hdmi 2")
-    assert device.calls[-1] == ("source", commands.INPUT_SOURCE.INPUT_SOURCE_STATE.HDMI2)
+    assert device.calls[-1] == (
+        "source",
+        commands.INPUT_SOURCE.INPUT_SOURCE_STATE.HDMI2,
+    )
     assert coordinator.refresh_requested

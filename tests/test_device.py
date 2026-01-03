@@ -1,4 +1,5 @@
 """Tests for Samsung MDC device wrapper."""
+# ruff: noqa: S101,FBT001,FBT002,ARG001,EM101,ANN202
 
 from __future__ import annotations
 
@@ -6,8 +7,8 @@ import pytest
 from samsung_mdc import commands
 from samsung_mdc.exceptions import MDCTimeoutError
 
-from custom_components.samsungtv_mdc.const import DEFAULT_PORT, DEFAULT_TIMEOUT
 from custom_components.samsungtv_mdc import coordinator
+from custom_components.samsungtv_mdc.const import DEFAULT_PORT, DEFAULT_TIMEOUT
 from custom_components.samsungtv_mdc.coordinator import SamsungMDCDevice
 
 
@@ -20,7 +21,7 @@ class _DummyClient:
         self.closed = False
         self.calls: list[str] = []
 
-    async def status(self, display_id: int):
+    async def status(self, _display_id: int):
         """Return status or raise on first attempt."""
         self.calls.append("status")
         if self.should_fail:
@@ -43,7 +44,6 @@ class _DummyClient:
 @pytest.mark.asyncio
 async def test_device_reconnects_after_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """Device recreates client after a recoverable MDC timeout."""
-
     created_clients: list[_DummyClient] = []
 
     def _client_factory(
@@ -59,7 +59,8 @@ async def test_device_reconnects_after_timeout(monkeypatch: pytest.MonkeyPatch) 
 
     status = await device.async_status()
 
+    expected_clients = 2
     assert status[0] == commands.POWER.POWER_STATE.ON
-    assert len(created_clients) == 2  # initial failure + recreated client
+    assert len(created_clients) == expected_clients
     assert created_clients[0].closed
     assert created_clients[1].calls == ["status"]

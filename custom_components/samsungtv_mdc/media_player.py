@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from samsung_mdc import commands
+from typing import TYPE_CHECKING
 
 from homeassistant.components.media_player import (
     MediaPlayerDeviceClass,
@@ -10,12 +10,16 @@ from homeassistant.components.media_player import (
     MediaPlayerEntityFeature,
     MediaPlayerState,
 )
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from samsung_mdc import commands
 
-from . import SamsungTVMDCConfigEntry
-from .coordinator import SamsungMDCDataUpdateCoordinator, SamsungMDCDevice
 from .entity import SamsungMDCEntity
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from . import SamsungTVMDCConfigEntry
+    from .coordinator import SamsungMDCDataUpdateCoordinator, SamsungMDCDevice
 
 SUPPORTED_SOURCES: dict[commands.INPUT_SOURCE.INPUT_SOURCE_STATE, str] = {
     commands.INPUT_SOURCE.INPUT_SOURCE_STATE.HDMI1: "HDMI 1",
@@ -57,18 +61,14 @@ SUPPORTED_FEATURES = (
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: SamsungTVMDCConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Samsung MDC media player."""
     runtime = entry.runtime_data
     async_add_entities(
-        [
-            SamsungMDCMediaPlayer(
-                runtime.coordinator, runtime.device_id, runtime.device
-            )
-        ]
+        [SamsungMDCMediaPlayer(runtime.coordinator, runtime.device_id, runtime.device)]
     )
 
 
@@ -160,7 +160,7 @@ class SamsungMDCMediaPlayer(SamsungMDCEntity, MediaPlayerEntity):
         await self._device.async_volume_step(commands.VOLUME_CHANGE.CHANGE_TO.DOWN)
         await self._refresh()
 
-    async def async_mute_volume(self, mute: bool) -> None:
+    async def async_mute_volume(self, mute: bool) -> None:  # noqa: FBT001
         """Mute or unmute the display."""
         await self._device.async_set_mute(mute)
         await self._refresh()

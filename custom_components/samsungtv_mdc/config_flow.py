@@ -2,23 +2,24 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from typing import Any
 
-from samsung_mdc import MDC
-from samsung_mdc.exceptions import MDCTimeoutError, MDCTLSAuthFailed
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
-    ConfigFlow as HAConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
+)
+from homeassistant.config_entries import (
+    ConfigFlow as HAConfigFlow,
 )
 from homeassistant.const import CONF_HOST
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
+from samsung_mdc import MDC
+from samsung_mdc.exceptions import MDCTimeoutError, MDCTLSAuthFailed
 
 from .const import (
     CONF_DISPLAY_ID,
@@ -83,7 +84,8 @@ async def _try_connect(host: str, display_id: int, port: int, pin: str | None) -
 
 
 async def validate_input(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
+    """
+    Validate the user input allows us to connect.
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
@@ -143,11 +145,11 @@ class ConfigFlow(HAConfigFlow, domain=DOMAIN):
         return OptionsFlowHandler(config_entry)
 
 
-class CannotConnect(HomeAssistantError):
+class CannotConnect(HomeAssistantError):  # noqa: N818
     """Error to indicate we cannot connect."""
 
 
-class InvalidAuth(HomeAssistantError):
+class InvalidAuth(HomeAssistantError):  # noqa: N818
     """Error to indicate there is invalid auth."""
 
 

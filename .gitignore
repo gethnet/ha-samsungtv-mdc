@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.ruff_cache
 
 # Distribution / packaging
 .Python
@@ -44,6 +45,8 @@ coverage.xml
 # Logs and debug
 pip-log.txt
 pip-delete-this-directory.txt
+*.log
+*/**/*.log
 
 # PyBuilder
 target/

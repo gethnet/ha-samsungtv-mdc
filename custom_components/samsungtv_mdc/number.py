@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-from homeassistant.components.number import NumberEntity, NumberMode
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from typing import TYPE_CHECKING
 
-from . import SamsungTVMDCConfigEntry
-from .coordinator import SamsungMDCDataUpdateCoordinator, SamsungMDCDevice
+from homeassistant.components.number import NumberEntity, NumberMode
+
 from .entity import SamsungMDCEntity
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from . import SamsungTVMDCConfigEntry
+    from .coordinator import SamsungMDCDataUpdateCoordinator, SamsungMDCDevice
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: SamsungTVMDCConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:

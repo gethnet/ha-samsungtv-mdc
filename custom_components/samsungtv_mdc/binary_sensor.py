@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-from samsung_mdc import commands
+from typing import TYPE_CHECKING
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from samsung_mdc import commands
 
-from . import SamsungTVMDCConfigEntry
 from .entity import SamsungMDCEntity
 
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from . import SamsungTVMDCConfigEntry
+    from .coordinator import SamsungMDCDataUpdateCoordinator
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: SamsungTVMDCConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
@@ -30,7 +34,9 @@ class SamsungMDCPowerBinarySensor(SamsungMDCEntity, BinarySensorEntity):
     _attr_translation_key = "power"
     _attr_name = "Power"
 
-    def __init__(self, coordinator, device_id: str) -> None:
+    def __init__(
+        self, coordinator: SamsungMDCDataUpdateCoordinator, device_id: str
+    ) -> None:
         """Initialize power binary sensor."""
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}-power"

@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.components.button import ButtonEntity
 from homeassistant.helpers.entity import EntityCategory
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import SamsungTVMDCConfigEntry
 from .entity import SamsungMDCEntity
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from . import SamsungTVMDCConfigEntry
+    from .coordinator import SamsungMDCDataUpdateCoordinator
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: SamsungTVMDCConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
@@ -30,7 +36,9 @@ class SamsungMDCRefreshButton(SamsungMDCEntity, ButtonEntity):
     _attr_name = "Refresh now"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator, device_id: str) -> None:
+    def __init__(
+        self, coordinator: SamsungMDCDataUpdateCoordinator, device_id: str
+    ) -> None:
         """Initialize refresh button."""
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}-refresh"
