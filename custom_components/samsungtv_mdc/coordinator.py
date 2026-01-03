@@ -209,6 +209,13 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             NAKError,
             OSError,
         ) as err:
+            # When a transient connection issue happens (e.g. connection reset by peer),
+            # keep the last known data if we have it so entities stay usable.
+            if self.data is not None:
+                self.logger.warning(
+                    "Transient MDC connection error: %s; keeping last state", err
+                )
+                return self.data
             raise UpdateFailed(err) from err
 
         power_state, volume, mute_state, input_source, *_ = status
