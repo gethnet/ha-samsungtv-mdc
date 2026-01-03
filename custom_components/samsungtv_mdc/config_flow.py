@@ -18,6 +18,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_DISPLAY_ID,
@@ -38,11 +39,27 @@ _LOGGER = logging.getLogger(__name__)
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
-        vol.Required(CONF_DISPLAY_ID, default=1): vol.All(
-            int, vol.Range(min=0, max=254)
+        vol.Required(
+            CONF_DISPLAY_ID,
+            default=1,
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0,
+                max=254,
+                step=1,
+                mode=selector.NumberSelectorMode.BOX,
+            )
         ),
-        vol.Optional(CONF_PORT, default=DEFAULT_PORT): vol.All(
-            int, vol.Range(min=1, max=65535)
+        vol.Optional(
+            CONF_PORT,
+            default=DEFAULT_PORT,
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=1,
+                max=65535,
+                step=1,
+                mode=selector.NumberSelectorMode.BOX,
+            )
         ),
         vol.Optional(CONF_PIN): vol.All(str, vol.Length(min=4, max=4)),
     }
@@ -70,10 +87,13 @@ async def validate_input(data: dict[str, Any]) -> dict[str, Any]:
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
+    # Ensure numeric fields are integers even if selectors provide them as float.
+    display_id = int(data[CONF_DISPLAY_ID])
+    port = int(data[CONF_PORT])
     display_name = await _try_connect(
         data[CONF_HOST],
-        data[CONF_DISPLAY_ID],
-        data[CONF_PORT],
+        display_id,
+        port,
         data.get(CONF_PIN),
     )
 

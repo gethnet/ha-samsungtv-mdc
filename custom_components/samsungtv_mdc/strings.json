@@ -49,14 +49,9 @@
         "name": "Display"
       }
     },
-    "sensor": {
-      "ticker": {
-        "name": "Ticker message"
-      }
-    },
     "text": {
       "ticker_message": {
-        "name": "Ticker message text"
+        "name": "Ticker message"
       }
     }
   },

@@ -46,7 +46,7 @@ class SamsungMDCManualLampNumber(_MDCBaseNumber):
 
     _attr_translation_key = "manual_lamp"
     _attr_name = "Display backlight"
-    _attr_mode = NumberMode.SLIDER
+    _attr_mode = NumberMode.BOX
     _attr_native_min_value = 1
     _attr_native_max_value = 100
     _attr_native_step = 1
@@ -78,7 +78,7 @@ class SamsungMDCColorTemperatureNumber(_MDCBaseNumber):
 
     _attr_translation_key = "color_temperature"
     _attr_name = "Display color temperature"
-    _attr_mode = NumberMode.SLIDER
+    _attr_mode = NumberMode.BOX
     _attr_native_min_value = 28
     _attr_native_max_value = 168
     _attr_native_step = 1

@@ -1,11 +1,10 @@
-"""Sensors and text entities for Samsung TV MDC."""
+"""Ticker text entity for Samsung TV MDC."""
 
 from __future__ import annotations
 
 from datetime import time
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.text import TextEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -20,11 +19,10 @@ async def async_setup_entry(
     entry: SamsungTVMDCConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Samsung MDC sensors."""
+    """Set up Samsung MDC text entities."""
     coordinator = entry.runtime_data.coordinator
     async_add_entities(
         [
-            SamsungMDCTickerSensor(coordinator, entry.runtime_data.device_id),
             SamsungMDCTickerMessageText(
                 coordinator,
                 entry.runtime_data.device_id,
@@ -34,22 +32,28 @@ async def async_setup_entry(
     )
 
 
-class SamsungMDCTickerSensor(SamsungMDCEntity, SensorEntity):
-    """Sensor representing ticker message and configuration."""
+class SamsungMDCTickerMessageText(SamsungMDCEntity, TextEntity):
+    """Text entity to update ticker message."""
 
-    _attr_translation_key = "ticker"
+    _attr_translation_key = "ticker_message"
     _attr_name = "Ticker message"
+    _attr_min_length = 0
+    _attr_max_length = 300
 
     def __init__(
-        self, coordinator: SamsungMDCDataUpdateCoordinator, device_id: str
+        self,
+        coordinator: SamsungMDCDataUpdateCoordinator,
+        device_id: str,
+        device: SamsungMDCDevice,
     ) -> None:
-        """Initialize ticker sensor."""
+        """Initialize ticker message text entity."""
         super().__init__(coordinator, device_id)
-        self._attr_unique_id = f"{device_id}-ticker"
+        self._device = device
+        self._attr_unique_id = f"{device_id}-ticker-message"
 
     @property
     def native_value(self) -> str | None:
-        """Return ticker message."""
+        """Return current ticker message."""
         ticker = self.coordinator.data.ticker
         if not ticker:
             return None
@@ -57,7 +61,7 @@ class SamsungMDCTickerSensor(SamsungMDCEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return ticker attributes."""
+        """Expose ticker configuration details."""
         ticker = self.coordinator.data.ticker
         if not ticker:
             return {
@@ -118,34 +122,6 @@ class SamsungMDCTickerSensor(SamsungMDCEntity, SensorEntity):
             "background_opacity": _enum_value(background_opacity),
             "message_length": len(str(message)),
         }
-
-
-class SamsungMDCTickerMessageText(SamsungMDCEntity, TextEntity):
-    """Text entity to update ticker message."""
-
-    _attr_translation_key = "ticker_message"
-    _attr_name = "Ticker message text"
-    _attr_min_length = 0
-    _attr_max_length = 300
-
-    def __init__(
-        self,
-        coordinator: SamsungMDCDataUpdateCoordinator,
-        device_id: str,
-        device: SamsungMDCDevice,
-    ) -> None:
-        """Initialize ticker message text entity."""
-        super().__init__(coordinator, device_id)
-        self._device = device
-        self._attr_unique_id = f"{device_id}-ticker-message"
-
-    @property
-    def native_value(self) -> str | None:
-        """Return current ticker message."""
-        ticker = self.coordinator.data.ticker
-        if not ticker:
-            return None
-        return str(ticker[-1])
 
     async def async_set_value(self, value: str) -> None:
         """Update ticker message while preserving existing ticker config."""
