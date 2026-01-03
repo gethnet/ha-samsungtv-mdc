@@ -66,7 +66,7 @@ def _base_state() -> SamsungMDCState:
         ticker=(),
         device_name="Lobby Display",
         serial_number=None,
-        model_number=None,
+        model_name=None,
         software_version=None,
     )
 

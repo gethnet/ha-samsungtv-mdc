@@ -29,7 +29,7 @@ class SamsungMDCEntity(CoordinatorEntity[SamsungMDCDataUpdateCoordinator]):
             identifiers={(DOMAIN, self._device_id)},
             manufacturer="Samsung",
             name=state.device_name or f"Samsung MDC {self._device_id}",
-            model=state.model_number,
+            model=state.model_name,
             serial_number=state.serial_number,
             sw_version=state.software_version,
         )

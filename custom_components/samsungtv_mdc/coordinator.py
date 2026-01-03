@@ -42,7 +42,7 @@ class SamsungMDCState:
     ticker: tuple[Any, ...]
     device_name: str | None
     serial_number: str | None
-    model_number: str | None
+    model_name: str | None
     software_version: str | None
 
 
@@ -137,6 +137,10 @@ class SamsungMDCDevice:
         """Fetch model number."""
         return await self._call("model_number")
 
+    async def async_model_name(self) -> tuple[Any, ...]:
+        """Fetch model name."""
+        return await self._call("model_name")
+
     async def async_software_version(self) -> tuple[Any, ...]:
         """Fetch software version."""
         return await self._call("software_version")
@@ -200,7 +204,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             ticker = await self.device.async_ticker()
             device_name = await self.device.async_device_name()
             serial_number = await self.device.async_serial_number()
-            model_number = await self.device.async_model_number()
+            model_name = await self.device.async_model_name()
             software_version = await self.device.async_software_version()
         except (
             MDCTimeoutError,
@@ -241,7 +245,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             ticker=ticker,
             device_name=_first_value(device_name),
             serial_number=_first_value(serial_number),
-            model_number=_first_value(model_number),
+            model_name=_first_value(model_name),
             software_version=_first_value(software_version),
         )
 
