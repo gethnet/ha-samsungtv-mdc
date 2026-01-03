@@ -81,7 +81,8 @@ data:
 ## Development
 - Create a venv and install test deps: `bash scripts/setup-dev.sh`
 - Run tests: `source .venv/bin/activate && pytest`
-- Run hassfest: `source .venv/bin/activate && python -m hassfest`
+- Lint with ruff `source .venv/bin/activate && ruff check . > ruff.check.log`
+- Apply auto fixes from ruff `source .venv/bin/activate && ruff check . --fix > ruff.check.log`
 
 ## License
 MIT License (see `LICENSE`).
