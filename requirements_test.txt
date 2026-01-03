@@ -1,5 +1,5 @@
 pytest-homeassistant-custom-component>=0.13.89
 python-samsung-mdc==1.17.0
-homeassistant>=2025.2.4
+homeassistant>=2025.1.4
 ruff==0.14.10
 pip>=21.3.1
