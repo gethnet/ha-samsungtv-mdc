@@ -197,27 +197,36 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         self.device = device
 
     async def _async_update_data(self) -> SamsungMDCState:
-        try:
-            status = await self.device.async_status()
-            manual_lamp = await self.device.async_manual_lamp()
-            color_temp = await self.device.async_color_temperature()
-            ticker = await self.device.async_ticker()
-            device_name = await self.device.async_device_name()
-            serial_number = await self.device.async_serial_number()
-            model_name = await self.device.async_model_name()
-            software_version = await self.device.async_software_version()
-        except (
-            MDCTimeoutError,
-            MDCReadTimeoutError,
-            MDCResponseError,
-            NAKError,
-            OSError,
-        ) as err:
-            # When a transient connection issue happens (e.g. connection reset by peer),
-            # keep the last known data if we have it so entities stay usable.
+        errors: list[BaseException] = []
+        for attempt in range(3):
+            try:
+                status = await self.device.async_status()
+                manual_lamp = await self.device.async_manual_lamp()
+                color_temp = await self.device.async_color_temperature()
+                ticker = await self.device.async_ticker()
+                device_name = await self.device.async_device_name()
+                serial_number = await self.device.async_serial_number()
+                model_name = await self.device.async_model_name()
+                software_version = await self.device.async_software_version()
+                break
+            except (
+                MDCTimeoutError,
+                MDCReadTimeoutError,
+                MDCResponseError,
+                NAKError,
+                OSError,
+                ConnectionError,
+            ) as err:
+                errors.append(err)
+                # Give the transport a brief moment to recover before retrying.
+                await asyncio.sleep(0.5)
+        else:
+            # All attempts failed; keep last known data if available.
+            err = errors[-1]
             if self.data is not None:
                 self.logger.warning(
-                    "Transient MDC connection error: %s; keeping last state", err
+                    "Transient MDC connection error after retries: %s; keeping last state",
+                    err,
                 )
                 return self.data
             raise UpdateFailed(err) from err

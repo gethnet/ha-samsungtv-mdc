@@ -53,6 +53,11 @@
       "ticker": {
         "name": "Ticker message"
       }
+    },
+    "text": {
+      "ticker_message": {
+        "name": "Ticker message text"
+      }
     }
   },
   "options": {

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
-from homeassistant.const import UnitOfTemperature
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -47,6 +46,7 @@ class SamsungMDCManualLampNumber(_MDCBaseNumber):
 
     _attr_translation_key = "manual_lamp"
     _attr_name = "Display backlight"
+    _attr_mode = NumberMode.SLIDER
     _attr_native_min_value = 1
     _attr_native_max_value = 100
     _attr_native_step = 1
@@ -65,7 +65,7 @@ class SamsungMDCManualLampNumber(_MDCBaseNumber):
     @property
     def native_value(self) -> float:
         """Return current lamp level."""
-        return float(self.coordinator.data.manual_lamp)
+        return self.coordinator.data.manual_lamp
 
     async def async_set_native_value(self, value: float) -> None:
         """Set new lamp level."""
@@ -78,11 +78,10 @@ class SamsungMDCColorTemperatureNumber(_MDCBaseNumber):
 
     _attr_translation_key = "color_temperature"
     _attr_name = "Display color temperature"
-    _attr_native_min_value = 2800
-    _attr_native_max_value = 16000
-    _attr_native_step = 100
-    _attr_device_class = NumberDeviceClass.TEMPERATURE
-    _attr_native_unit_of_measurement = UnitOfTemperature.KELVIN
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_min_value = 28
+    _attr_native_max_value = 168
+    _attr_native_step = 1
 
     def __init__(
         self,
@@ -97,11 +96,10 @@ class SamsungMDCColorTemperatureNumber(_MDCBaseNumber):
 
     @property
     def native_value(self) -> float:
-        """Return current color temperature in Kelvin."""
-        return float(self.coordinator.data.color_temperature_hk * 100)
+        """Return current color temperature in hectoKelvin."""
+        return self.coordinator.data.color_temperature_hk
 
     async def async_set_native_value(self, value: float) -> None:
         """Set new color temperature."""
-        value_hk = int(value / 100)
-        await self._device.async_set_color_temperature(value_hk)
+        await self._device.async_set_color_temperature(int(value))
         await self.coordinator.async_request_refresh()
