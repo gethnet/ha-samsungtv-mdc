@@ -18,6 +18,7 @@ from samsung_mdc.exceptions import (
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import async_timeout
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -187,6 +188,10 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             update_interval = timedelta(minutes=raw_interval)
         else:
             update_interval = raw_interval
+        self._normal_update_interval = update_interval
+        self._retry_update_interval = timedelta(seconds=30)
+        self._in_retry_mode = False
+        self._request_timeout = 15
         super().__init__(
             hass,
             logger=logging.getLogger(__name__),
@@ -198,36 +203,56 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
 
     async def _async_update_data(self) -> SamsungMDCState:
         errors: list[BaseException] = []
-        for attempt in range(3):
-            try:
-                status = await self.device.async_status()
-                manual_lamp = await self.device.async_manual_lamp()
-                color_temp = await self.device.async_color_temperature()
-                ticker = await self.device.async_ticker()
-                device_name = await self.device.async_device_name()
-                serial_number = await self.device.async_serial_number()
-                model_name = await self.device.async_model_name()
-                software_version = await self.device.async_software_version()
-                break
-            except (
-                MDCTimeoutError,
-                MDCReadTimeoutError,
-                MDCResponseError,
-                NAKError,
-                OSError,
-                ConnectionError,
-            ) as err:
-                errors.append(err)
-                # Give the transport a brief moment to recover before retrying.
-                await asyncio.sleep(0.5)
-        else:
-            # All attempts failed; keep last known data if available.
-            err = errors[-1]
+        try:
+            async with async_timeout.timeout(self._request_timeout):
+                for attempt in range(3):
+                    try:
+                        status = await self.device.async_status()
+                        manual_lamp = await self.device.async_manual_lamp()
+                        color_temp = await self.device.async_color_temperature()
+                        ticker = await self.device.async_ticker()
+                        device_name = await self.device.async_device_name()
+                        serial_number = await self.device.async_serial_number()
+                        model_name = await self.device.async_model_name()
+                        software_version = await self.device.async_software_version()
+                        if self._in_retry_mode:
+                            self.async_set_update_interval(self._normal_update_interval)
+                            self._in_retry_mode = False
+                        break
+                    except (
+                        MDCTimeoutError,
+                        MDCReadTimeoutError,
+                        MDCResponseError,
+                        NAKError,
+                        OSError,
+                        ConnectionError,
+                    ) as err:
+                        errors.append(err)
+                        # Give the transport a brief moment to recover before retrying.
+                        await asyncio.sleep(0.5)
+                else:
+                    last_error = errors[-1]
+                    if not self._in_retry_mode:
+                        self.logger.warning(
+                            "Transient MDC connection error after retries: %s; retrying quickly",
+                            last_error,
+                        )
+                        self._in_retry_mode = True
+                        self.async_set_update_interval(self._retry_update_interval)
+                    else:
+                        self.logger.debug(
+                            "Retrying MDC connection after error: %s", last_error
+                        )
+                    if self.data is not None:
+                        # Keep entities available with their last known data while retrying.
+                        return self.data
+                    raise UpdateFailed(last_error) from last_error
+        except asyncio.TimeoutError as err:
+            self.logger.warning(
+                "MDC update exceeded %ss timeout; keeping last known state",
+                self._request_timeout,
+            )
             if self.data is not None:
-                self.logger.warning(
-                    "Transient MDC connection error after retries: %s; keeping last state",
-                    err,
-                )
                 return self.data
             raise UpdateFailed(err) from err
 
