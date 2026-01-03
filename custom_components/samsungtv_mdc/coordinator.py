@@ -8,6 +8,7 @@ from datetime import timedelta
 import logging
 from typing import Any
 
+from async_timeout import timeout
 from samsung_mdc import MDC, commands
 from samsung_mdc.exceptions import (
     MDCReadTimeoutError,
@@ -18,7 +19,6 @@ from samsung_mdc.exceptions import (
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import async_timeout
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -204,7 +204,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
     async def _async_update_data(self) -> SamsungMDCState:
         errors: list[BaseException] = []
         try:
-            async with async_timeout.timeout(self._request_timeout):
+            async with timeout(self._request_timeout):
                 for attempt in range(3):
                     try:
                         status = await self.device.async_status()
