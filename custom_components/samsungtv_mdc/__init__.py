@@ -61,6 +61,13 @@ _MIN_TICKER_FIELDS = 14
 _LONG_MESSAGE_THRESHOLD = 80
 
 
+def _entry_value(entry: ConfigEntry, key: str, default: Any) -> Any:
+    """Return value from options when present, otherwise config data."""
+    if key in entry.options:
+        return entry.options[key]
+    return entry.data.get(key, default)
+
+
 async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     """Set up the Samsung MDC integration."""
     _async_register_services(hass)
@@ -71,11 +78,11 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: SamsungTVMDCConfigEntry
 ) -> bool:
     """Set up Samsung TV MDC from a config entry."""
-    host = entry.data[CONF_HOST]
-    display_id = entry.data[CONF_DISPLAY_ID]
-    port = entry.data.get(CONF_PORT, DEFAULT_PORT)
-    pin = entry.data.get(CONF_PIN)
-    device_id = f"{host}-{display_id}"
+    host = _entry_value(entry, CONF_HOST, entry.data[CONF_HOST])
+    display_id = int(_entry_value(entry, CONF_DISPLAY_ID, entry.data[CONF_DISPLAY_ID]))
+    port = int(_entry_value(entry, CONF_PORT, entry.data.get(CONF_PORT, DEFAULT_PORT)))
+    pin = _entry_value(entry, CONF_PIN, entry.data.get(CONF_PIN))
+    device_id = entry.unique_id or f"{host}-{display_id}"
 
     device = SamsungMDCDevice(host, display_id, port, pin, DEFAULT_TIMEOUT)
     coordinator = SamsungMDCDataUpdateCoordinator(hass, entry, device)

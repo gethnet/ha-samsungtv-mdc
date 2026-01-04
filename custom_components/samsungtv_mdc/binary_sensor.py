@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from . import SamsungTVMDCConfigEntry
     from .coordinator import SamsungMDCDataUpdateCoordinator
 
+
 async def async_setup_entry(
     _hass: HomeAssistant,
     entry: SamsungTVMDCConfigEntry,

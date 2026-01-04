@@ -164,21 +164,92 @@ class OptionsFlowHandler(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Manage the options."""
-        if user_input is not None:
-            return self.async_create_entry(
-                title="",
-                data={CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL]},
-            )
-
+        errors: dict[str, str] = {}
         current_interval: int | timedelta = self._entry.options.get(
             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
         )
+        current_host: str = self._entry.options.get(
+            CONF_HOST, self._entry.data[CONF_HOST]
+        )
+        current_display_id: int = int(
+            self._entry.options.get(
+                CONF_DISPLAY_ID, self._entry.data.get(CONF_DISPLAY_ID, 1)
+            )
+        )
+        current_port: int = int(
+            self._entry.options.get(CONF_PORT, self._entry.data.get(CONF_PORT, 0))
+            or DEFAULT_PORT
+        )
+        current_pin: str | None = self._entry.options.get(
+            CONF_PIN, self._entry.data.get(CONF_PIN)
+        )
+
         if isinstance(current_interval, timedelta):
             current_interval = int(current_interval.total_seconds() // 60)
+
+        if user_input is not None:
+            host = user_input[CONF_HOST]
+            display_id = int(user_input[CONF_DISPLAY_ID])
+            port = int(user_input[CONF_PORT])
+            pin_value: str | None = user_input.get(CONF_PIN) or None
+            scan_interval = int(user_input[CONF_SCAN_INTERVAL])
+
+            try:
+                await _try_connect(host, display_id, port, pin_value)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                new_options: dict[str, Any] = {
+                    CONF_HOST: host,
+                    CONF_DISPLAY_ID: display_id,
+                    CONF_PORT: port,
+                    CONF_SCAN_INTERVAL: scan_interval,
+                }
+                new_options[CONF_PIN] = pin_value
+                return self.async_create_entry(
+                    title="",
+                    data=new_options,
+                )
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Required(
+                        CONF_HOST,
+                        default=current_host,
+                    ): str,
+                    vol.Required(
+                        CONF_DISPLAY_ID,
+                        default=current_display_id,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=254,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_PORT,
+                        default=current_port,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1,
+                            max=65535,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_PIN,
+                        default=current_pin or "",
+                    ): vol.Any("", vol.All(str, vol.Length(min=4, max=4))),
                     vol.Required(
                         CONF_SCAN_INTERVAL,
                         default=int(current_interval),

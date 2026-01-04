@@ -192,13 +192,16 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         else:
             update_interval = raw_interval
         self._normal_update_interval = update_interval
+        configured_display_id = entry.options.get(
+            CONF_DISPLAY_ID, entry.data[CONF_DISPLAY_ID]
+        )
         self._retry_update_interval = timedelta(seconds=30)
         self._in_retry_mode = False
         self._request_timeout = 15
         super().__init__(
             hass,
             logger=logging.getLogger(__name__),
-            name=f"{DOMAIN}-{entry.data[CONF_DISPLAY_ID]}",
+            name=f"{DOMAIN}-{configured_display_id}",
             update_interval=update_interval,
             config_entry=entry,
         )
