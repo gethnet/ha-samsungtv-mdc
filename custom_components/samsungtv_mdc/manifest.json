@@ -9,5 +9,5 @@
   "iot_class": "local_polling",
   "quality_scale": "bronze",
   "requirements": ["python-samsung-mdc==1.17.0"],
-  "version": "2026.1.3.5-alpha"
+  "version": "2026.1.4.1"
 }
