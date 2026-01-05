@@ -72,8 +72,8 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_PIN,
-                default=defaults.get(CONF_PIN, "") or "",
-            ): vol.Any("", vol.All(str, vol.Length(min=4, max=4))),
+                default=defaults.get(CONF_PIN),
+            ): vol.Any(None, vol.All(str, vol.Length(min=4, max=4))),
             vol.Required(
                 CONF_SCAN_INTERVAL,
                 default=int(scan_interval),
