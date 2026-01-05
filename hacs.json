@@ -1,6 +1,5 @@
 {
   "name": "Samsung TV MDC",
-  "domains": ["samsungtv_mdc"],
   "homeassistant": "2024.4.0",
   "render_readme": true
 }
