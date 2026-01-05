@@ -207,7 +207,7 @@ async def _async_entry_from_call(call: ServiceCall) -> SamsungTVMDCConfigEntry:
     if config_entry_id := call.data.get("config_entry_id"):
         entry_ids = {config_entry_id}
     else:
-        entry_ids = await async_extract_config_entry_ids(call, expand_group=True)
+        entry_ids = await async_extract_config_entry_ids(hass, call, expand_group=True)
 
     if not entry_ids:
         msg = "Ticker target is missing or not loaded"

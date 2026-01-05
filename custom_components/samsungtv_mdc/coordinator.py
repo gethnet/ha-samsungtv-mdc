@@ -19,6 +19,8 @@ from samsung_mdc.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
@@ -207,22 +209,41 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         )
         self.device = device
 
-    async def _async_update_data(self) -> SamsungMDCState:  # noqa: PLR0912
+    async def _async_update_data(self) -> SamsungMDCState:  # noqa: PLR0912, PLR0915
         errors: list[BaseException] = []
+        previous_state = self.data
+
+        async def _maybe_fetch(
+            fetcher: Callable[[], Awaitable[Any]],
+            description: str,
+            fallback: Any,
+            *,
+            should_fetch: bool,
+        ) -> Any:
+            if not should_fetch:
+                return fallback
+            try:
+                return await fetcher()
+            except (
+                MDCTimeoutError,
+                MDCReadTimeoutError,
+                MDCResponseError,
+                NAKError,
+                OSError,
+                ConnectionError,
+            ) as err:
+                self.logger.debug(
+                    "Using cached %s after MDC error: %s", description, err
+                )
+                return fallback
+
         try:
             async with timeout(self._request_timeout):
                 for _attempt in range(3):
                     try:
                         status = await self.device.async_status()
-                        manual_lamp = await self.device.async_manual_lamp()
-                        color_temp = await self.device.async_color_temperature()
-                        ticker = await self.device.async_ticker()
-                        device_name = await self.device.async_device_name()
-                        serial_number = await self.device.async_serial_number()
-                        model_name = await self.device.async_model_name()
-                        software_version = await self.device.async_software_version()
                         if self._in_retry_mode:
-                            self.async_set_update_interval(self._normal_update_interval)
+                            self.update_interval = self._normal_update_interval
                             self._in_retry_mode = False
                         break
                     except (
@@ -234,7 +255,6 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                         ConnectionError,
                     ) as err:
                         errors.append(err)
-                        # Give the transport a brief moment to recover before retrying.
                         await asyncio.sleep(0.5)
                 else:
                     last_error = errors[-1]
@@ -243,27 +263,23 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                             "Transient MDC connection error after retries: %s; "
                             "retrying quickly"
                         )
-                        self.logger.warning(
-                            msg,
-                            last_error,
-                        )
+                        self.logger.warning(msg, last_error)
                         self._in_retry_mode = True
-                        self.async_set_update_interval(self._retry_update_interval)
+                        self.update_interval = self._retry_update_interval
                     else:
                         self.logger.debug(
                             "Retrying MDC connection after error: %s", last_error
                         )
-                    if self.data is not None:
-                        # Keep entities available using last known data while retrying.
-                        return self.data
+                    if previous_state is not None:
+                        return previous_state
                     raise UpdateFailed(last_error) from last_error
         except TimeoutError as err:
             self.logger.warning(
                 "MDC update exceeded %ss timeout; keeping last known state",
                 self._request_timeout,
             )
-            if self.data is not None:
-                return self.data
+            if previous_state is not None:
+                return previous_state
             raise UpdateFailed(err) from err
 
         power_state, volume, mute_state, input_source, *_ = status
@@ -278,6 +294,63 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             parsed_source = None
         else:
             parsed_source = input_source
+
+        should_poll_optional = (
+            power_state != commands.POWER.POWER_STATE.OFF or previous_state is None
+        )
+        manual_lamp_value = (
+            previous_state.manual_lamp if previous_state is not None else 0
+        )
+        manual_lamp = await _maybe_fetch(
+            self.device.async_manual_lamp,
+            "manual lamp level",
+            (manual_lamp_value,),
+            should_fetch=should_poll_optional,
+        )
+        color_temp_value = (
+            previous_state.color_temperature_hk if previous_state is not None else 0
+        )
+        color_temp = await _maybe_fetch(
+            self.device.async_color_temperature,
+            "color temperature",
+            (color_temp_value,),
+            should_fetch=should_poll_optional,
+        )
+        ticker_value = previous_state.ticker if previous_state is not None else ()
+        ticker = await _maybe_fetch(
+            self.device.async_ticker,
+            "ticker settings",
+            ticker_value,
+            should_fetch=should_poll_optional,
+        )
+        device_name = await _maybe_fetch(
+            self.device.async_device_name,
+            "device name",
+            previous_state.device_name if previous_state is not None else None,
+            should_fetch=should_poll_optional
+            and (previous_state is None or previous_state.device_name is None),
+        )
+        serial_number = await _maybe_fetch(
+            self.device.async_serial_number,
+            "serial number",
+            previous_state.serial_number if previous_state is not None else None,
+            should_fetch=should_poll_optional
+            and (previous_state is None or previous_state.serial_number is None),
+        )
+        model_name = await _maybe_fetch(
+            self.device.async_model_name,
+            "model name",
+            previous_state.model_name if previous_state is not None else None,
+            should_fetch=should_poll_optional
+            and (previous_state is None or previous_state.model_name is None),
+        )
+        software_version = await _maybe_fetch(
+            self.device.async_software_version,
+            "software version",
+            previous_state.software_version if previous_state is not None else None,
+            should_fetch=should_poll_optional
+            and (previous_state is None or previous_state.software_version is None),
+        )
 
         return SamsungMDCState(
             power=power_state,
