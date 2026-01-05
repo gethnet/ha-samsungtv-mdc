@@ -72,8 +72,12 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_PIN,
-                default=defaults.get(CONF_PIN),
-            ): vol.Any(None, vol.All(str, vol.Length(min=4, max=4))),
+                default=defaults.get(CONF_PIN, "") or "",
+            ): vol.Any(
+                "",
+                None,
+                vol.All(str, vol.Match(r"^\d{4,12}$")),
+            ),
             vol.Required(
                 CONF_SCAN_INTERVAL,
                 default=int(scan_interval),
@@ -116,11 +120,12 @@ async def validate_input(data: dict[str, Any]) -> dict[str, Any]:
     # Ensure numeric fields are integers even if selectors provide them as float.
     display_id = int(data[CONF_DISPLAY_ID])
     port = int(data[CONF_PORT])
+    pin = data.get(CONF_PIN) or None
     display_name = await _try_connect(
         data[CONF_HOST],
         display_id,
         port,
-        data.get(CONF_PIN),
+        pin,
     )
 
     return {"title": display_name}
@@ -144,7 +149,7 @@ def _current_entry_values(entry: ConfigEntry) -> dict[str, Any]:
             entry.options.get(CONF_PORT, entry.data.get(CONF_PORT, DEFAULT_PORT))
             or DEFAULT_PORT
         ),
-        CONF_PIN: entry.options.get(CONF_PIN, entry.data.get(CONF_PIN)),
+        CONF_PIN: entry.options.get(CONF_PIN, entry.data.get(CONF_PIN, "") or ""),
         CONF_SCAN_INTERVAL: scan_interval,
     }
 
