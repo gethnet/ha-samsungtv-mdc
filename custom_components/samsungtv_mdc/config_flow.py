@@ -36,6 +36,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+PIN_MIN_LENGTH = 4
+PIN_MAX_LENGTH = 12
+_MASKED_PIN_NONE = "none"
+
 
 def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
     """Return schema for device connection fields and interval."""
@@ -70,14 +74,6 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),
-            vol.Optional(
-                CONF_PIN,
-                default=defaults.get(CONF_PIN, "") or "",
-            ): vol.Any(
-                "",
-                None,
-                vol.All(str, vol.Match(r"^\d{4,12}$")),
-            ),
             vol.Required(
                 CONF_SCAN_INTERVAL,
                 default=int(scan_interval),
@@ -99,12 +95,20 @@ async def _try_connect(host: str, display_id: int, port: int, pin: str | None) -
     """Try connecting to device and return model string."""
     target = host if port == DEFAULT_PORT else f"{host}:{port}"
 
+    _LOGGER.debug(
+        "Connecting to MDC target %s display %s (pin:%s)",
+        target,
+        display_id,
+        _masked_pin(pin),
+    )
     try:
         async with MDC(target, timeout=DEFAULT_TIMEOUT, pin=pin) as client:
             status = await client.status(display_id)
     except MDCTLSAuthFailed as err:
+        _LOGGER.debug("MDC TLS auth failed for %s: %s", target, err)
         raise InvalidAuth from err
     except (MDCTimeoutError, OSError) as err:
+        _LOGGER.debug("MDC connection error for %s: %s", target, err)
         raise CannotConnect from err
 
     power_state = status[0].name if hasattr(status[0], "name") else str(status[0])
@@ -120,7 +124,7 @@ async def validate_input(data: dict[str, Any]) -> dict[str, Any]:
     # Ensure numeric fields are integers even if selectors provide them as float.
     display_id = int(data[CONF_DISPLAY_ID])
     port = int(data[CONF_PORT])
-    pin = data.get(CONF_PIN) or None
+    pin = _normalized_pin(data.get(CONF_PIN))
     display_name = await _try_connect(
         data[CONF_HOST],
         display_id,
@@ -175,11 +179,33 @@ def _update_entry_configuration(
             CONF_HOST: settings[CONF_HOST],
             CONF_DISPLAY_ID: settings[CONF_DISPLAY_ID],
             CONF_PORT: settings[CONF_PORT],
+            CONF_PIN: settings[CONF_PIN],
         }
     )
     new_options = _merged_options(entry.options, settings)
     hass.config_entries.async_update_entry(entry, data=new_data, options=new_options)
     hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+
+
+def _masked_pin(pin: str | None) -> str:
+    """Return masked pin length for logging."""
+    if not pin:
+        return _MASKED_PIN_NONE
+    try:
+        pin_length = len(str(pin))
+    except Exception:  # noqa: BLE001
+        return _MASKED_PIN_NONE
+    return f"{pin_length}d"
+
+
+def _normalized_pin(pin: str | None) -> str | None:
+    """Return sanitized pin or raise for invalid input."""
+    if not pin:
+        return None
+    pin_str = str(pin)
+    if pin_str.isdigit() and PIN_MIN_LENGTH <= len(pin_str) <= PIN_MAX_LENGTH:
+        return pin_str
+    raise InvalidPin
 
 
 class ConfigFlow(HAConfigFlow, domain=DOMAIN):
@@ -201,6 +227,8 @@ class ConfigFlow(HAConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
+            except InvalidPin:
+                errors["pin"] = "invalid_pin"
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
@@ -242,32 +270,37 @@ class ConfigFlow(HAConfigFlow, domain=DOMAIN):
             host = user_input[CONF_HOST]
             display_id = int(user_input[CONF_DISPLAY_ID])
             port = int(user_input[CONF_PORT])
-            pin_value: str | None = user_input.get(CONF_PIN) or None
+            try:
+                pin_value = _normalized_pin(user_input.get(CONF_PIN))
+            except InvalidPin:
+                errors["pin"] = "invalid_pin"
+                pin_value = None
             scan_interval = int(user_input[CONF_SCAN_INTERVAL])
 
-            try:
-                await _try_connect(host, display_id, port, pin_value)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except Exception:
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
-            else:
-                settings = {
-                    CONF_HOST: host,
-                    CONF_DISPLAY_ID: display_id,
-                    CONF_PORT: port,
-                    CONF_PIN: pin_value,
-                    CONF_SCAN_INTERVAL: scan_interval,
-                }
-                _update_entry_configuration(
-                    self.hass,
-                    self._reconfigure_entry,
-                    settings,
-                )
-                return self.async_abort(reason="reconfigure_successful")
+            if not errors:
+                try:
+                    await _try_connect(host, display_id, port, pin_value)
+                except CannotConnect:
+                    errors["base"] = "cannot_connect"
+                except InvalidAuth:
+                    errors["base"] = "invalid_auth"
+                except Exception:
+                    _LOGGER.exception("Unexpected exception")
+                    errors["base"] = "unknown"
+                else:
+                    settings = {
+                        CONF_HOST: host,
+                        CONF_DISPLAY_ID: display_id,
+                        CONF_PORT: port,
+                        CONF_PIN: pin_value,
+                        CONF_SCAN_INTERVAL: scan_interval,
+                    }
+                    _update_entry_configuration(
+                        self.hass,
+                        self._reconfigure_entry,
+                        settings,
+                    )
+                    return self.async_abort(reason="reconfigure_successful")
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -289,6 +322,10 @@ class InvalidAuth(HomeAssistantError):  # noqa: N818
     """Error to indicate there is invalid auth."""
 
 
+class InvalidPin(HomeAssistantError):  # noqa: N818
+    """Error to indicate the provided PIN is invalid."""
+
+
 class OptionsFlowHandler(OptionsFlow):
     """Handle options for Samsung TV MDC."""
 
@@ -307,34 +344,39 @@ class OptionsFlowHandler(OptionsFlow):
             host = user_input[CONF_HOST]
             display_id = int(user_input[CONF_DISPLAY_ID])
             port = int(user_input[CONF_PORT])
-            pin_value: str | None = user_input.get(CONF_PIN) or None
+            try:
+                pin_value = _normalized_pin(user_input.get(CONF_PIN))
+            except InvalidPin:
+                errors["pin"] = "invalid_pin"
+                pin_value = None
             scan_interval = int(user_input[CONF_SCAN_INTERVAL])
 
-            try:
-                await _try_connect(host, display_id, port, pin_value)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except Exception:
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
-            else:
-                settings = {
-                    CONF_HOST: host,
-                    CONF_DISPLAY_ID: display_id,
-                    CONF_PORT: port,
-                    CONF_PIN: pin_value,
-                    CONF_SCAN_INTERVAL: scan_interval,
-                }
-                new_options = _merged_options(
-                    self._entry.options,
-                    settings,
-                )
-                return self.async_create_entry(
-                    title="",
-                    data=new_options,
-                )
+            if not errors:
+                try:
+                    await _try_connect(host, display_id, port, pin_value)
+                except CannotConnect:
+                    errors["base"] = "cannot_connect"
+                except InvalidAuth:
+                    errors["base"] = "invalid_auth"
+                except Exception:
+                    _LOGGER.exception("Unexpected exception")
+                    errors["base"] = "unknown"
+                else:
+                    settings = {
+                        CONF_HOST: host,
+                        CONF_DISPLAY_ID: display_id,
+                        CONF_PORT: port,
+                        CONF_PIN: pin_value,
+                        CONF_SCAN_INTERVAL: scan_interval,
+                    }
+                    new_options = _merged_options(
+                        self._entry.options,
+                        settings,
+                    )
+                    return self.async_create_entry(
+                        title="",
+                        data=new_options,
+                    )
 
         return self.async_show_form(
             step_id="init",
