@@ -37,34 +37,58 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_HOST): str,
-        vol.Required(
-            CONF_DISPLAY_ID,
-            default=1,
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=0,
-                max=254,
-                step=1,
-                mode=selector.NumberSelectorMode.BOX,
-            )
-        ),
-        vol.Optional(
-            CONF_PORT,
-            default=DEFAULT_PORT,
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=1,
-                max=65535,
-                step=1,
-                mode=selector.NumberSelectorMode.BOX,
-            )
-        ),
-        vol.Optional(CONF_PIN): vol.All(str, vol.Length(min=4, max=4)),
-    }
-)
+def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
+    """Return schema for device connection fields and interval."""
+    scan_interval = defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    if isinstance(scan_interval, timedelta):
+        scan_interval = int(scan_interval.total_seconds() // 60)
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_HOST,
+                default=defaults.get(CONF_HOST, ""),
+            ): str,
+            vol.Required(
+                CONF_DISPLAY_ID,
+                default=int(defaults.get(CONF_DISPLAY_ID, 1)),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=254,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_PORT,
+                default=int(defaults.get(CONF_PORT, DEFAULT_PORT)),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=65535,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_PIN,
+                default=defaults.get(CONF_PIN, "") or "",
+            ): vol.Any("", vol.All(str, vol.Length(min=4, max=4))),
+            vol.Required(
+                CONF_SCAN_INTERVAL,
+                default=int(scan_interval),
+            ): vol.All(
+                vol.Coerce(int),
+                vol.Range(
+                    min=int(MIN_SCAN_INTERVAL.total_seconds() // 60),
+                    max=int(MAX_SCAN_INTERVAL.total_seconds() // 60),
+                ),
+            ),
+        }
+    )
+
+
+STEP_USER_DATA_SCHEMA = _options_schema({})
 
 
 async def _try_connect(host: str, display_id: int, port: int, pin: str | None) -> str:
@@ -102,11 +126,63 @@ async def validate_input(data: dict[str, Any]) -> dict[str, Any]:
     return {"title": display_name}
 
 
+def _current_entry_values(entry: ConfigEntry) -> dict[str, Any]:
+    """Return current connection values using options when present."""
+    scan_interval: int | timedelta = entry.options.get(
+        CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    )
+    if isinstance(scan_interval, timedelta):
+        scan_interval = int(scan_interval.total_seconds() // 60)
+    else:
+        scan_interval = int(scan_interval)
+    return {
+        CONF_HOST: entry.options.get(CONF_HOST, entry.data.get(CONF_HOST, "")),
+        CONF_DISPLAY_ID: int(
+            entry.options.get(CONF_DISPLAY_ID, entry.data.get(CONF_DISPLAY_ID, 1))
+        ),
+        CONF_PORT: int(
+            entry.options.get(CONF_PORT, entry.data.get(CONF_PORT, DEFAULT_PORT))
+            or DEFAULT_PORT
+        ),
+        CONF_PIN: entry.options.get(CONF_PIN, entry.data.get(CONF_PIN)),
+        CONF_SCAN_INTERVAL: scan_interval,
+    }
+
+
+def _merged_options(
+    existing: dict[str, Any], settings: dict[str, Any]
+) -> dict[str, Any]:
+    """Merge updated connection values into current options."""
+    new_options = dict(existing)
+    new_options.update(settings)
+    return new_options
+
+
+def _update_entry_configuration(
+    hass: Any,
+    entry: ConfigEntry,
+    settings: dict[str, Any],
+) -> None:
+    """Persist updated connection settings and reload entry."""
+    new_data = dict(entry.data)
+    new_data.update(
+        {
+            CONF_HOST: settings[CONF_HOST],
+            CONF_DISPLAY_ID: settings[CONF_DISPLAY_ID],
+            CONF_PORT: settings[CONF_PORT],
+        }
+    )
+    new_options = _merged_options(entry.options, settings)
+    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options)
+    hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+
+
 class ConfigFlow(HAConfigFlow, domain=DOMAIN):
     """Handle a config flow for Samsung TV MDC."""
 
     VERSION = 1
     MINOR_VERSION = 1
+    _reconfigure_entry: ConfigEntry | None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -139,6 +215,61 @@ class ConfigFlow(HAConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfigure when entry is in error state."""
+        errors: dict[str, str] = {}
+
+        if self.context.get("entry_id") is None:
+            return self.async_abort(reason="unknown")
+
+        self._reconfigure_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+
+        if self._reconfigure_entry is None:
+            return self.async_abort(reason="unknown")
+
+        current_values = _current_entry_values(self._reconfigure_entry)
+
+        if user_input is not None:
+            host = user_input[CONF_HOST]
+            display_id = int(user_input[CONF_DISPLAY_ID])
+            port = int(user_input[CONF_PORT])
+            pin_value: str | None = user_input.get(CONF_PIN) or None
+            scan_interval = int(user_input[CONF_SCAN_INTERVAL])
+
+            try:
+                await _try_connect(host, display_id, port, pin_value)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                settings = {
+                    CONF_HOST: host,
+                    CONF_DISPLAY_ID: display_id,
+                    CONF_PORT: port,
+                    CONF_PIN: pin_value,
+                    CONF_SCAN_INTERVAL: scan_interval,
+                }
+                _update_entry_configuration(
+                    self.hass,
+                    self._reconfigure_entry,
+                    settings,
+                )
+                return self.async_abort(reason="reconfigure_successful")
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_options_schema(current_values),
+            errors=errors,
+        )
+
     @staticmethod
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         """Return the options flow handler."""
@@ -165,27 +296,7 @@ class OptionsFlowHandler(OptionsFlow):
     ) -> ConfigFlowResult:
         """Manage the options."""
         errors: dict[str, str] = {}
-        current_interval: int | timedelta = self._entry.options.get(
-            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-        )
-        current_host: str = self._entry.options.get(
-            CONF_HOST, self._entry.data[CONF_HOST]
-        )
-        current_display_id: int = int(
-            self._entry.options.get(
-                CONF_DISPLAY_ID, self._entry.data.get(CONF_DISPLAY_ID, 1)
-            )
-        )
-        current_port: int = int(
-            self._entry.options.get(CONF_PORT, self._entry.data.get(CONF_PORT, 0))
-            or DEFAULT_PORT
-        )
-        current_pin: str | None = self._entry.options.get(
-            CONF_PIN, self._entry.data.get(CONF_PIN)
-        )
-
-        if isinstance(current_interval, timedelta):
-            current_interval = int(current_interval.total_seconds() // 60)
+        current_values = _current_entry_values(self._entry)
 
         if user_input is not None:
             host = user_input[CONF_HOST]
@@ -204,13 +315,17 @@ class OptionsFlowHandler(OptionsFlow):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                new_options: dict[str, Any] = {
+                settings = {
                     CONF_HOST: host,
                     CONF_DISPLAY_ID: display_id,
                     CONF_PORT: port,
+                    CONF_PIN: pin_value,
                     CONF_SCAN_INTERVAL: scan_interval,
                 }
-                new_options[CONF_PIN] = pin_value
+                new_options = _merged_options(
+                    self._entry.options,
+                    settings,
+                )
                 return self.async_create_entry(
                     title="",
                     data=new_options,
@@ -218,48 +333,6 @@ class OptionsFlowHandler(OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_HOST,
-                        default=current_host,
-                    ): str,
-                    vol.Required(
-                        CONF_DISPLAY_ID,
-                        default=current_display_id,
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=0,
-                            max=254,
-                            step=1,
-                            mode=selector.NumberSelectorMode.BOX,
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_PORT,
-                        default=current_port,
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=1,
-                            max=65535,
-                            step=1,
-                            mode=selector.NumberSelectorMode.BOX,
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_PIN,
-                        default=current_pin or "",
-                    ): vol.Any("", vol.All(str, vol.Length(min=4, max=4))),
-                    vol.Required(
-                        CONF_SCAN_INTERVAL,
-                        default=int(current_interval),
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=int(MIN_SCAN_INTERVAL.total_seconds() // 60),
-                            max=int(MAX_SCAN_INTERVAL.total_seconds() // 60),
-                        ),
-                    ),
-                }
-            ),
+            data_schema=_options_schema(current_values),
+            errors=errors,
         )
