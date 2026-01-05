@@ -1,12 +1,12 @@
 {
+  "domain": "samsungtv_mdc",
+  "name": "Samsung TV MDC",
   "codeowners": ["@gethnet", "@amwdrizz"],
   "config_flow": true,
   "documentation": "https://github.com/gethnet/ha-samsungtv-mdc",
-  "domain": "samsungtv_mdc",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/gethnet/ha-samsungtv-mdc/issues",
-  "name": "Samsung TV MDC",
   "quality_scale": "bronze",
   "requirements": ["python-samsung-mdc==1.17.0"],
   "version": "2026.1.4.3"
