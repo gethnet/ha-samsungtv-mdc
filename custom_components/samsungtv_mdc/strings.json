@@ -14,13 +14,13 @@
         "data": {
           "display_id": "Display ID",
           "host": "[%key:common::config_flow::data::host%]",
-          "pin": "PIN (optional)",
+          "pin": "PIN (optional, 4-12 digits)",
           "port": "[%key:common::config_flow::data::port%]"
         },
         "data_description": {
           "display_id": "Display ID reported by the display (often 0 or 1).",
           "host": "Host or IP address of the display.",
-          "pin": "4-digit PIN for secured TLS (if enabled on the display).",
+          "pin": "PIN for secured TLS (4-12 digits). Leave empty to disable TLS.",
           "port": "Port used for MDC (default 1515)."
         }
       }
@@ -62,14 +62,14 @@
         "data": {
           "display_id": "Display ID",
           "host": "[%key:common::config_flow::data::host%]",
-          "pin": "PIN (optional)",
+          "pin": "PIN (optional, 4-12 digits)",
           "port": "[%key:common::config_flow::data::port%]",
           "scan_interval": "Update interval (minutes)"
         },
         "data_description": {
           "display_id": "Display ID reported by the display (often 0 or 1).",
           "host": "Host or IP address of the display.",
-          "pin": "4-digit PIN for secured TLS (leave empty to disable TLS).",
+          "pin": "PIN for secured TLS (4-12 digits). Leave empty to disable TLS.",
           "port": "Port used for MDC (default 1515).",
           "scan_interval": "Minutes between updates (5-15)."
         }
