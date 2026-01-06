@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from async_timeout import timeout
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 from samsung_mdc import MDC, commands
 from samsung_mdc.exceptions import (
     MDCReadTimeoutError,
@@ -19,6 +20,8 @@ from samsung_mdc.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
@@ -30,6 +33,7 @@ from .const import (
     DOMAIN,
 )
 
+CONNECTION_REFUSED_ERRNO = 111
 UNKNOWN_VOLUME = 255
 
 
@@ -62,6 +66,7 @@ class SamsungMDCDevice:
         timeout: float,
     ) -> None:
         """Initialize MDC device wrapper."""
+        self._logger = logging.getLogger(__name__)
         self._target = host if port == DEFAULT_PORT else f"{host}:{port}"
         self.display_id = display_id
         self._pin = pin
@@ -151,23 +156,66 @@ class SamsungMDCDevice:
 
     async def _call(self, command: str, data: list[Any] | None = None) -> Any:
         async with self._lock:
-            try:
-                return await self._invoke(command, data)
-            except (
-                MDCTimeoutError,
-                MDCReadTimeoutError,
-                MDCResponseError,
-                OSError,
-                ConnectionError,
-            ):
-                await self._reset_client()
-                return await self._invoke(command, data)
+            last_error: BaseException | None = None
+            for _attempt in range(2):
+                try:
+                    return await self._invoke(command, data)
+                except (
+                    MDCTimeoutError,
+                    MDCReadTimeoutError,
+                    MDCResponseError,
+                    OSError,
+                    ConnectionError,
+                ) as err:
+                    if self._should_ignore_error(command, data, err):
+                        self._logger.debug(
+                            "Ignoring MDC error for %s command; assuming success: %s",
+                            command,
+                            err,
+                        )
+                        await self._reset_client()
+                        return None
+                    last_error = err
+                    await self._reset_client()
+            if last_error is None:
+                msg = "last_error not set after MDC retries"
+                raise RuntimeError(msg)
+            if self._should_ignore_error(command, data, last_error):
+                self._logger.debug(
+                    "Suppressing MDC error for %s command after retries: %s",
+                    command,
+                    last_error,
+                )
+                return None
+            raise last_error
 
     async def _invoke(self, command: str, data: list[Any] | None) -> Any:
         method = getattr(self._client, command)
         if data is None:
             return await method(self.display_id)
         return await method(self.display_id, data)
+
+    @staticmethod
+    def _should_ignore_error(
+        command: str, data: list[Any] | None, err: BaseException
+    ) -> bool:
+        """Return True when an MDC power command error should be treated as success."""
+        return (
+            command == "power"
+            and data is not None
+            and (
+                (
+                    isinstance(err, MDCResponseError)
+                    and err.args
+                    and err.args[0] == "Empty response"
+                )
+                or isinstance(err, ConnectionRefusedError)
+                or (
+                    isinstance(err, OSError)
+                    and getattr(err, "errno", None) == CONNECTION_REFUSED_ERRNO
+                )
+            )
+        )
 
     async def _reset_client(self) -> None:
         """Recreate MDC client after a connection failure."""
@@ -188,7 +236,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         raw_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         update_interval: timedelta
         if isinstance(raw_interval, int):
-            update_interval = timedelta(minutes=raw_interval)
+            update_interval = timedelta(seconds=raw_interval)
         else:
             update_interval = raw_interval
         self._normal_update_interval = update_interval
@@ -197,7 +245,9 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         )
         self._retry_update_interval = timedelta(seconds=30)
         self._in_retry_mode = False
-        self._request_timeout = 15
+        self._request_timeout = 8
+        self._pending_power_on = False
+        self._pending_power_expires: datetime | None = None
         super().__init__(
             hass,
             logger=logging.getLogger(__name__),
@@ -207,22 +257,41 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         )
         self.device = device
 
-    async def _async_update_data(self) -> SamsungMDCState:  # noqa: PLR0912
+    async def _async_update_data(self) -> SamsungMDCState:  # noqa: PLR0912, PLR0915
         errors: list[BaseException] = []
+        previous_state = self.data
+
+        async def _maybe_fetch(
+            fetcher: Callable[[], Awaitable[Any]],
+            description: str,
+            fallback: Any,
+            *,
+            should_fetch: bool,
+        ) -> Any:
+            if not should_fetch:
+                return fallback
+            try:
+                return await fetcher()
+            except (
+                MDCTimeoutError,
+                MDCReadTimeoutError,
+                MDCResponseError,
+                NAKError,
+                OSError,
+                ConnectionError,
+            ) as err:
+                self.logger.debug(
+                    "Using cached %s after MDC error: %s", description, err
+                )
+                return fallback
+
         try:
             async with timeout(self._request_timeout):
                 for _attempt in range(3):
                     try:
                         status = await self.device.async_status()
-                        manual_lamp = await self.device.async_manual_lamp()
-                        color_temp = await self.device.async_color_temperature()
-                        ticker = await self.device.async_ticker()
-                        device_name = await self.device.async_device_name()
-                        serial_number = await self.device.async_serial_number()
-                        model_name = await self.device.async_model_name()
-                        software_version = await self.device.async_software_version()
                         if self._in_retry_mode:
-                            self.async_set_update_interval(self._normal_update_interval)
+                            self.update_interval = self._normal_update_interval
                             self._in_retry_mode = False
                         break
                     except (
@@ -234,7 +303,6 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                         ConnectionError,
                     ) as err:
                         errors.append(err)
-                        # Give the transport a brief moment to recover before retrying.
                         await asyncio.sleep(0.5)
                 else:
                     last_error = errors[-1]
@@ -243,30 +311,29 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                             "Transient MDC connection error after retries: %s; "
                             "retrying quickly"
                         )
-                        self.logger.warning(
-                            msg,
-                            last_error,
-                        )
+                        self.logger.warning(msg, last_error)
                         self._in_retry_mode = True
-                        self.async_set_update_interval(self._retry_update_interval)
+                        self.update_interval = self._retry_update_interval
                     else:
                         self.logger.debug(
                             "Retrying MDC connection after error: %s", last_error
                         )
-                    if self.data is not None:
-                        # Keep entities available using last known data while retrying.
-                        return self.data
+                    if previous_state is not None:
+                        return previous_state
                     raise UpdateFailed(last_error) from last_error
         except TimeoutError as err:
             self.logger.warning(
                 "MDC update exceeded %ss timeout; keeping last known state",
                 self._request_timeout,
             )
-            if self.data is not None:
-                return self.data
+            if previous_state is not None:
+                return previous_state
             raise UpdateFailed(err) from err
 
         power_state, volume, mute_state, input_source, *_ = status
+        self._pending_power_on_active()
+        if power_state == commands.POWER.POWER_STATE.ON:
+            self._clear_pending_power_on()
         parsed_volume = None if volume == UNKNOWN_VOLUME else int(volume)
         parsed_mute: commands.MUTE.MUTE_STATE | None
         if mute_state == commands.MUTE.MUTE_STATE.NONE:
@@ -278,6 +345,63 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             parsed_source = None
         else:
             parsed_source = input_source
+
+        should_poll_optional = (
+            power_state != commands.POWER.POWER_STATE.OFF or previous_state is None
+        )
+        manual_lamp_value = (
+            previous_state.manual_lamp if previous_state is not None else 0
+        )
+        manual_lamp = await _maybe_fetch(
+            self.device.async_manual_lamp,
+            "manual lamp level",
+            (manual_lamp_value,),
+            should_fetch=should_poll_optional,
+        )
+        color_temp_value = (
+            previous_state.color_temperature_hk if previous_state is not None else 0
+        )
+        color_temp = await _maybe_fetch(
+            self.device.async_color_temperature,
+            "color temperature",
+            (color_temp_value,),
+            should_fetch=should_poll_optional,
+        )
+        ticker_value = previous_state.ticker if previous_state is not None else ()
+        ticker = await _maybe_fetch(
+            self.device.async_ticker,
+            "ticker settings",
+            ticker_value,
+            should_fetch=should_poll_optional,
+        )
+        device_name = await _maybe_fetch(
+            self.device.async_device_name,
+            "device name",
+            previous_state.device_name if previous_state is not None else None,
+            should_fetch=should_poll_optional
+            and (previous_state is None or previous_state.device_name is None),
+        )
+        serial_number = await _maybe_fetch(
+            self.device.async_serial_number,
+            "serial number",
+            previous_state.serial_number if previous_state is not None else None,
+            should_fetch=should_poll_optional
+            and (previous_state is None or previous_state.serial_number is None),
+        )
+        model_name = await _maybe_fetch(
+            self.device.async_model_name,
+            "model name",
+            previous_state.model_name if previous_state is not None else None,
+            should_fetch=should_poll_optional
+            and (previous_state is None or previous_state.model_name is None),
+        )
+        software_version = await _maybe_fetch(
+            self.device.async_software_version,
+            "software version",
+            previous_state.software_version if previous_state is not None else None,
+            should_fetch=should_poll_optional
+            and (previous_state is None or previous_state.software_version is None),
+        )
 
         return SamsungMDCState(
             power=power_state,
@@ -292,6 +416,35 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             model_name=_first_value(model_name),
             software_version=_first_value(software_version),
         )
+
+    def mark_power_on_pending(self, duration_seconds: int = 45) -> None:
+        """Mark that a power-on command was sent and wait for confirmation."""
+        self._pending_power_on = True
+        self._pending_power_expires = dt_util.utcnow() + timedelta(
+            seconds=duration_seconds
+        )
+
+    @property
+    def is_power_on_pending(self) -> bool:
+        """Return True while a power-on command is pending."""
+        return self._pending_power_on_active()
+
+    def _pending_power_on_active(self) -> bool:
+        """Return True while power-on is pending and not expired."""
+        if not self._pending_power_on:
+            return False
+        if (
+            self._pending_power_expires
+            and dt_util.utcnow() > self._pending_power_expires
+        ):
+            self._clear_pending_power_on()
+            return False
+        return True
+
+    def _clear_pending_power_on(self) -> None:
+        """Clear pending power-on flag."""
+        self._pending_power_on = False
+        self._pending_power_expires = None
 
 
 def _first_value(value: Any) -> Any | None:

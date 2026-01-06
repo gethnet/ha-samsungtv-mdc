@@ -90,12 +90,18 @@ class SamsungMDCMediaPlayer(SamsungMDCEntity, MediaPlayerEntity):
         super().__init__(coordinator, device_id)
         self._device = device
         self._attr_unique_id = f"{device_id}-media_player"
+        self._turn_on_status = "Initializing display"
 
     @property
     def state(self) -> MediaPlayerState | None:
         """Return media player state."""
         power = self.coordinator.data.power
         if power == commands.POWER.POWER_STATE.ON:
+            return MediaPlayerState.ON
+        if (
+            power == commands.POWER.POWER_STATE.OFF
+            and self.coordinator.is_power_on_pending
+        ):
             return MediaPlayerState.ON
         if power == commands.POWER.POWER_STATE.OFF:
             return MediaPlayerState.OFF
@@ -134,8 +140,16 @@ class SamsungMDCMediaPlayer(SamsungMDCEntity, MediaPlayerEntity):
         """Return the list of available input sources."""
         return list(SUPPORTED_SOURCES.values())
 
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        """Return additional state attributes."""
+        if self.coordinator.is_power_on_pending:
+            return {"status": self._turn_on_status}
+        return {}
+
     async def async_turn_on(self) -> None:
         """Turn on the display."""
+        self.coordinator.mark_power_on_pending()
         await self._device.async_set_power(commands.POWER.POWER_STATE.ON)
         await self._refresh()
 

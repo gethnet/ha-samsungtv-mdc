@@ -19,6 +19,7 @@ class _DummyCoordinator:
         self.last_update_success = True
         self.refresh_requested = False
         self.hass = None
+        self._pending_power_on = False
 
     def async_add_listener(self, update_callback: object):
         """Return a no-op remove callback."""
@@ -28,6 +29,19 @@ class _DummyCoordinator:
     async def async_request_refresh(self):
         """Mark that a refresh was requested."""
         self.refresh_requested = True
+
+    def mark_power_on_pending(self, duration_seconds: int = 45) -> None:  # noqa: ARG002
+        """Set pending power flag (duration ignored in stub)."""
+        self._pending_power_on = True
+
+    @property
+    def is_power_on_pending(self) -> bool:
+        """Return whether power-on is pending."""
+        return self._pending_power_on
+
+    def clear_power_on_pending(self) -> None:
+        """Clear pending power flag."""
+        self._pending_power_on = False
 
 
 class _DummyDevice:
@@ -102,3 +116,45 @@ async def test_media_player_controls_and_state() -> None:
         commands.INPUT_SOURCE.INPUT_SOURCE_STATE.HDMI2,
     )
     assert coordinator.refresh_requested
+
+
+@pytest.mark.asyncio
+async def test_turn_on_sets_waiting_state_and_clears_on_power_on() -> None:
+    """Turn-on sets a waiting state until power transitions to on."""
+    state = _base_state()
+    state.power = commands.POWER.POWER_STATE.OFF
+    coordinator = _DummyCoordinator(state)
+    device = _DummyDevice()
+    entity = SamsungMDCMediaPlayer(coordinator, "display-1", device)
+
+    await entity.async_turn_on()
+
+    assert entity.state == MediaPlayerState.ON
+    assert entity.extra_state_attributes == {"status": "Initializing display"}
+
+    coordinator.data.power = commands.POWER.POWER_STATE.ON
+    coordinator.clear_power_on_pending()
+    await entity.async_update()
+
+    assert entity.state == MediaPlayerState.ON
+    assert entity.extra_state_attributes == {}
+
+
+@pytest.mark.asyncio
+async def test_waiting_state_expires_after_timeout() -> None:
+    """Waiting indicator clears after timeout even if power stays off."""
+    state = _base_state()
+    state.power = commands.POWER.POWER_STATE.OFF
+    coordinator = _DummyCoordinator(state)
+    device = _DummyDevice()
+    entity = SamsungMDCMediaPlayer(coordinator, "display-1", device)
+
+    await entity.async_turn_on()
+
+    assert entity.state == MediaPlayerState.ON
+
+    coordinator.clear_power_on_pending()
+    await entity.async_update()
+
+    assert entity.state == MediaPlayerState.OFF
+    assert entity.extra_state_attributes == {}
