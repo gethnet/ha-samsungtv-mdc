@@ -1,5 +1,6 @@
 pytest-homeassistant-custom-component>=0.13.89
 python-samsung-mdc==1.17.0
-homeassistant>=2025.1.4
+# Match HA version expected by pytest-homeassistant-custom-component (needs ConfigSubentryData)
+homeassistant>=2025.4.4
 ruff==0.14.10
 pip>=21.3.1

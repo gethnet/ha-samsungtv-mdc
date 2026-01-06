@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -40,8 +41,12 @@ def _user_input(
     display_id: int = 1,
     port: int = DEFAULT_PORT,
     pin: str = "1234",
-    scan_interval: int = 10,
+    scan_interval: int | timedelta | None = None,
 ):
+    if scan_interval is None:
+        scan_interval = int(DEFAULT_SCAN_INTERVAL.total_seconds())
+    if isinstance(scan_interval, timedelta):
+        scan_interval = int(scan_interval.total_seconds())
     return {
         CONF_HOST: host,
         CONF_DISPLAY_ID: display_id,
@@ -184,14 +189,14 @@ async def test_options_flow_updates_settings(
     entry = MockConfigEntry(
         domain=DOMAIN,
         data=_user_input(scan_interval=DEFAULT_SCAN_INTERVAL),
-        options={CONF_SCAN_INTERVAL: 7},
+        options={CONF_SCAN_INTERVAL: 25},
     )
     entry.add_to_hass(hass_asyncio)
     flow = OptionsFlowHandler(entry)
     flow.hass = hass_asyncio
     expected_display_id = 2
     expected_port = 1516
-    expected_scan = 6
+    expected_scan = 45
     new_input = _user_input(
         host="10.0.0.2",
         display_id=expected_display_id,

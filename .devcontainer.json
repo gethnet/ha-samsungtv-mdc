@@ -1,10 +1,15 @@
 {
     "name": "ludeeus/integration_blueprint",
     "image": "mcr.microsoft.com/devcontainers/python:3.13",
-    "postCreateCommand": "scripts/setup",
+    "postCreateCommand": "scripts/setup && scripts/install_go2rtc.sh",
     "forwardPorts": [
         8123
     ],
+    "mounts": [{
+        "source": "ha-dev-conf",
+        "target": "/config",
+        "type": "volume"
+    }],
     "portsAttributes": {
         "8123": {
             "label": "Home Assistant",
@@ -16,9 +21,12 @@
             "extensions": [
                 "charliermarsh.ruff",
                 "github.vscode-pull-request-github",
+                "ms-python.pylint",
                 "ms-python.python",
                 "ms-python.vscode-pylance",
                 "ryanluker.vscode-coverage-gutters",
+                "redhat.vscode-yaml",
+                "esbenp.prettier-vscode",
                 "openai.chatgpt"
             ],
             "settings": {

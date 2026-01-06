@@ -45,4 +45,6 @@ class SamsungMDCPowerBinarySensor(SamsungMDCEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return whether the display is on."""
-        return self.coordinator.data.power == commands.POWER.POWER_STATE.ON
+        return self.coordinator.data.power == commands.POWER.POWER_STATE.ON or getattr(
+            self.coordinator, "is_power_on_pending", False
+        )

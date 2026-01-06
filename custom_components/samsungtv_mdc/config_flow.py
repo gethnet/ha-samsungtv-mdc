@@ -45,7 +45,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
     """Return schema for device connection fields and interval."""
     scan_interval = defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     if isinstance(scan_interval, timedelta):
-        scan_interval = int(scan_interval.total_seconds() // 60)
+        scan_interval = int(scan_interval.total_seconds())
     return vol.Schema(
         {
             vol.Required(
@@ -80,8 +80,8 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             ): vol.All(
                 vol.Coerce(int),
                 vol.Range(
-                    min=int(MIN_SCAN_INTERVAL.total_seconds() // 60),
-                    max=int(MAX_SCAN_INTERVAL.total_seconds() // 60),
+                    min=int(MIN_SCAN_INTERVAL.total_seconds()),
+                    max=int(MAX_SCAN_INTERVAL.total_seconds()),
                 ),
             ),
         }

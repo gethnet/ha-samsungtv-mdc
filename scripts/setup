@@ -4,4 +4,9 @@ set -e
 
 cd "$(dirname "$0")/.."
 
+sudo chown vscode:vscode -R /config
+cp -Rv config/* /config/
+
 python3 -m pip install --requirement requirements.txt
+
+

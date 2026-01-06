@@ -9,7 +9,7 @@ CONF_PIN = "pin"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_PORT = "port"
 DEFAULT_PORT = 1515
-DEFAULT_TIMEOUT = 5
-DEFAULT_SCAN_INTERVAL = timedelta(minutes=10)
-MIN_SCAN_INTERVAL = timedelta(minutes=5)
+DEFAULT_TIMEOUT = 3
+DEFAULT_SCAN_INTERVAL = timedelta(seconds=30)
+MIN_SCAN_INTERVAL = timedelta(seconds=15)
 MAX_SCAN_INTERVAL = timedelta(minutes=15)

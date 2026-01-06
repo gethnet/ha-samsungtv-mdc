@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from async_timeout import timeout
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 from samsung_mdc import MDC, commands
 from samsung_mdc.exceptions import (
     MDCReadTimeoutError,
@@ -32,6 +33,7 @@ from .const import (
     DOMAIN,
 )
 
+CONNECTION_REFUSED_ERRNO = 111
 UNKNOWN_VOLUME = 255
 
 
@@ -64,6 +66,7 @@ class SamsungMDCDevice:
         timeout: float,
     ) -> None:
         """Initialize MDC device wrapper."""
+        self._logger = logging.getLogger(__name__)
         self._target = host if port == DEFAULT_PORT else f"{host}:{port}"
         self.display_id = display_id
         self._pin = pin
@@ -153,23 +156,66 @@ class SamsungMDCDevice:
 
     async def _call(self, command: str, data: list[Any] | None = None) -> Any:
         async with self._lock:
-            try:
-                return await self._invoke(command, data)
-            except (
-                MDCTimeoutError,
-                MDCReadTimeoutError,
-                MDCResponseError,
-                OSError,
-                ConnectionError,
-            ):
-                await self._reset_client()
-                return await self._invoke(command, data)
+            last_error: BaseException | None = None
+            for _attempt in range(2):
+                try:
+                    return await self._invoke(command, data)
+                except (
+                    MDCTimeoutError,
+                    MDCReadTimeoutError,
+                    MDCResponseError,
+                    OSError,
+                    ConnectionError,
+                ) as err:
+                    if self._should_ignore_error(command, data, err):
+                        self._logger.debug(
+                            "Ignoring MDC error for %s command; assuming success: %s",
+                            command,
+                            err,
+                        )
+                        await self._reset_client()
+                        return None
+                    last_error = err
+                    await self._reset_client()
+            if last_error is None:
+                msg = "last_error not set after MDC retries"
+                raise RuntimeError(msg)
+            if self._should_ignore_error(command, data, last_error):
+                self._logger.debug(
+                    "Suppressing MDC error for %s command after retries: %s",
+                    command,
+                    last_error,
+                )
+                return None
+            raise last_error
 
     async def _invoke(self, command: str, data: list[Any] | None) -> Any:
         method = getattr(self._client, command)
         if data is None:
             return await method(self.display_id)
         return await method(self.display_id, data)
+
+    @staticmethod
+    def _should_ignore_error(
+        command: str, data: list[Any] | None, err: BaseException
+    ) -> bool:
+        """Return True when an MDC power command error should be treated as success."""
+        return (
+            command == "power"
+            and data is not None
+            and (
+                (
+                    isinstance(err, MDCResponseError)
+                    and err.args
+                    and err.args[0] == "Empty response"
+                )
+                or isinstance(err, ConnectionRefusedError)
+                or (
+                    isinstance(err, OSError)
+                    and getattr(err, "errno", None) == CONNECTION_REFUSED_ERRNO
+                )
+            )
+        )
 
     async def _reset_client(self) -> None:
         """Recreate MDC client after a connection failure."""
@@ -190,7 +236,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         raw_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         update_interval: timedelta
         if isinstance(raw_interval, int):
-            update_interval = timedelta(minutes=raw_interval)
+            update_interval = timedelta(seconds=raw_interval)
         else:
             update_interval = raw_interval
         self._normal_update_interval = update_interval
@@ -199,7 +245,9 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         )
         self._retry_update_interval = timedelta(seconds=30)
         self._in_retry_mode = False
-        self._request_timeout = 15
+        self._request_timeout = 8
+        self._pending_power_on = False
+        self._pending_power_expires: datetime | None = None
         super().__init__(
             hass,
             logger=logging.getLogger(__name__),
@@ -283,6 +331,9 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             raise UpdateFailed(err) from err
 
         power_state, volume, mute_state, input_source, *_ = status
+        self._pending_power_on_active()
+        if power_state == commands.POWER.POWER_STATE.ON:
+            self._clear_pending_power_on()
         parsed_volume = None if volume == UNKNOWN_VOLUME else int(volume)
         parsed_mute: commands.MUTE.MUTE_STATE | None
         if mute_state == commands.MUTE.MUTE_STATE.NONE:
@@ -365,6 +416,35 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
             model_name=_first_value(model_name),
             software_version=_first_value(software_version),
         )
+
+    def mark_power_on_pending(self, duration_seconds: int = 45) -> None:
+        """Mark that a power-on command was sent and wait for confirmation."""
+        self._pending_power_on = True
+        self._pending_power_expires = dt_util.utcnow() + timedelta(
+            seconds=duration_seconds
+        )
+
+    @property
+    def is_power_on_pending(self) -> bool:
+        """Return True while a power-on command is pending."""
+        return self._pending_power_on_active()
+
+    def _pending_power_on_active(self) -> bool:
+        """Return True while power-on is pending and not expired."""
+        if not self._pending_power_on:
+            return False
+        if (
+            self._pending_power_expires
+            and dt_util.utcnow() > self._pending_power_expires
+        ):
+            self._clear_pending_power_on()
+            return False
+        return True
+
+    def _clear_pending_power_on(self) -> None:
+        """Clear pending power-on flag."""
+        self._pending_power_on = False
+        self._pending_power_expires = None
 
 
 def _first_value(value: Any) -> Any | None:
