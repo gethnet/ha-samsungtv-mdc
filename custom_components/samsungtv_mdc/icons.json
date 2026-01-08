@@ -2,25 +2,25 @@
   "entity": {
     "sensor": {
       "panel_state": {
-        "icon": "mdi:television"
+        "default": "mdi:television"
       }
     },
     "button": {
       "refresh": {
-        "icon": "mdi:refresh"
+        "default": "mdi:refresh"
       }
     },
     "number": {
       "manual_lamp": {
-        "icon": "mdi:brightness-6"
+        "default": "mdi:brightness-6"
       },
       "color_temperature": {
-        "icon": "mdi:white-balance-sunny"
+        "default": "mdi:white-balance-sunny"
       }
     },
     "text": {
       "ticker_message": {
-        "icon": "mdi:message-text-outline"
+        "default": "mdi:message-text-outline"
       }
     }
   },
