@@ -78,6 +78,9 @@ data:
 - If commands stop working after power toggles, the integration automatically reconnects; wait a few seconds for the next poll or trigger `Reload` on the config entry.
 - Ensure the display’s MDC port and display ID match your settings; some models default to display ID `1`.
 
+## Breaking changes
+- The legacy binary sensor `binary_sensor.<name>_power` has been removed. Use the new enum sensor `sensor.<name>_panel_state` (`on`, `starting`, `off`) for automations and dashboards.
+
 ## Development
 - Create a venv and install test deps: `bash scripts/setup-dev.sh`
 - Run tests: `source .venv/bin/activate && pytest`

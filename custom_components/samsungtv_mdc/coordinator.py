@@ -31,6 +31,7 @@ from .const import (
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    PanelState,
 )
 
 CONNECTION_REFUSED_ERRNO = 111
@@ -248,6 +249,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         self._request_timeout = 8
         self._pending_power_on = False
         self._pending_power_expires: datetime | None = None
+        self._last_status_success = False
         super().__init__(
             hass,
             logger=logging.getLogger(__name__),
@@ -260,6 +262,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
     async def _async_update_data(self) -> SamsungMDCState:  # noqa: PLR0912, PLR0915
         errors: list[BaseException] = []
         previous_state = self.data
+        status_success = False
 
         async def _maybe_fetch(
             fetcher: Callable[[], Awaitable[Any]],
@@ -290,6 +293,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                 for _attempt in range(3):
                     try:
                         status = await self.device.async_status()
+                        status_success = True
                         if self._in_retry_mode:
                             self.update_interval = self._normal_update_interval
                             self._in_retry_mode = False
@@ -319,6 +323,7 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                             "Retrying MDC connection after error: %s", last_error
                         )
                     if previous_state is not None:
+                        self._last_status_success = False
                         return previous_state
                     raise UpdateFailed(last_error) from last_error
         except TimeoutError as err:
@@ -327,8 +332,10 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
                 self._request_timeout,
             )
             if previous_state is not None:
+                self._last_status_success = False
                 return previous_state
             raise UpdateFailed(err) from err
+        self._last_status_success = status_success
 
         power_state, volume, mute_state, input_source, *_ = status
         self._pending_power_on_active()
@@ -445,6 +452,27 @@ class SamsungMDCDataUpdateCoordinator(DataUpdateCoordinator[SamsungMDCState]):
         """Clear pending power-on flag."""
         self._pending_power_on = False
         self._pending_power_expires = None
+
+    @property
+    def last_status_success(self) -> bool:
+        """Return True when the most recent status poll succeeded."""
+        return self._last_status_success
+
+    @property
+    def panel_state(self) -> PanelState:
+        """Return the current panel state for UI consumption."""
+        power_state = self.data.power if self.data is not None else None
+        if power_state is None:
+            return PanelState.STARTING if self.is_power_on_pending else PanelState.OFF
+        if power_state == commands.POWER.POWER_STATE.ON:
+            return PanelState.ON
+        if self.is_power_on_pending:
+            if not self._last_status_success:
+                return PanelState.ON
+            return PanelState.STARTING
+        if power_state == commands.POWER.POWER_STATE.OFF:
+            return PanelState.OFF
+        return PanelState.STARTING
 
 
 def _first_value(value: Any) -> Any | None:

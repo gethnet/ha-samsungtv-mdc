@@ -1,4 +1,29 @@
 {
+  "entity": {
+    "sensor": {
+      "panel_state": {
+        "default": "mdi:television"
+      }
+    },
+    "button": {
+      "refresh": {
+        "default": "mdi:refresh"
+      }
+    },
+    "number": {
+      "manual_lamp": {
+        "default": "mdi:brightness-6"
+      },
+      "color_temperature": {
+        "default": "mdi:white-balance-sunny"
+      }
+    },
+    "text": {
+      "ticker_message": {
+        "default": "mdi:message-text-outline"
+      }
+    }
+  },
   "services": {
     "set_ticker": {
       "service": "mdi:message-text-outline"
