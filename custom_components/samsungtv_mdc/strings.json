@@ -30,7 +30,12 @@
   "entity": {
     "sensor": {
       "panel_state": {
-        "name": "Panel state"
+        "name": "Panel state",
+        "state": {
+          "off": "Off",
+          "starting": "Powering up",
+          "on": "On"
+        }
       }
     },
     "button": {
@@ -54,15 +59,6 @@
     "text": {
       "ticker_message": {
         "name": "Ticker message"
-      }
-    }
-  },
-  "state": {
-    "sensor": {
-      "panel_state": {
-        "off": "Off",
-        "starting": "Powering up",
-        "on": "On"
       }
     }
   },
