@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
-from samsung_mdc import commands
 
+from .const import PanelState
 from .entity import SamsungMDCEntity
 
 if TYPE_CHECKING:
@@ -45,6 +45,7 @@ class SamsungMDCPowerBinarySensor(SamsungMDCEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return whether the display is on."""
-        return self.coordinator.data.power == commands.POWER.POWER_STATE.ON or getattr(
-            self.coordinator, "is_power_on_pending", False
-        )
+        if not hasattr(self.coordinator, "panel_state"):
+            return False
+        panel_state = self.coordinator.panel_state
+        return panel_state in (PanelState.ON, PanelState.STARTING)

@@ -37,7 +37,6 @@ if TYPE_CHECKING:
     from homeassistant.helpers.typing import ConfigType
 
 PLATFORMS: list[Platform] = [
-    Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.MEDIA_PLAYER,
     Platform.NUMBER,

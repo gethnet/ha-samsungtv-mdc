@@ -28,9 +28,9 @@
     }
   },
   "entity": {
-    "binary_sensor": {
-      "power": {
-        "name": "Power"
+    "sensor": {
+      "panel_state": {
+        "name": "Panel state"
       }
     },
     "button": {
@@ -54,6 +54,15 @@
     "text": {
       "ticker_message": {
         "name": "Ticker message"
+      }
+    }
+  },
+  "state": {
+    "sensor": {
+      "panel_state": {
+        "off": "Off",
+        "starting": "Powering up",
+        "on": "On"
       }
     }
   },

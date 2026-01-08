@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/gethnet/ha-samsungtv-mdc/issues",
   "quality_scale": "bronze",
   "requirements": ["python-samsung-mdc==1.17.0"],
-  "version": "2026.1.5.3"
+  "version": "2026.1.7"
 }

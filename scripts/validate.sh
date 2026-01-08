@@ -11,6 +11,15 @@ docker run --rm --platform linux/amd64 \
   ghcr.io/home-assistant/hassfest:latest \
   --integration-path /github/workspace/custom_components/samsungtv_mdc
 
+echo "==> Running ruff (integration only, ignoring site-packages/venv)..."
+docker run --rm \
+  -v "$ROOT_DIR:/workspace" \
+  -w /workspace \
+  ghcr.io/astral-sh/ruff:latest \
+  check custom_components/samsungtv_mdc \
+  --extend-exclude '**/site-packages/**' \
+  --extend-exclude '.venv'
+
 echo "==> Running HACS validation..."
 docker run --rm \
   --platform linux/amd64 \
@@ -19,6 +28,7 @@ docker run --rm \
   ghcr.io/hacs/action:22.5.0 \
   python -m hacs_action \
     --category integration \
-    --ignore brands
+    --ignore brands \
+  | grep -vE "site-packages|\\.(venv|env)/"
 
 echo "All validations passed."

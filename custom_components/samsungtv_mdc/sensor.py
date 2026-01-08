@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.components.text import TextEntity
 
+from .const import PanelState
 from .entity import SamsungMDCEntity
 
 TICKER_FIELD_COUNT = 14
@@ -26,15 +28,41 @@ async def async_setup_entry(
 ) -> None:
     """Set up Samsung MDC text entities."""
     coordinator = entry.runtime_data.coordinator
+    device_id = entry.runtime_data.device_id
     async_add_entities(
         [
+            SamsungMDCPanelStateSensor(coordinator, device_id),
             SamsungMDCTickerMessageText(
                 coordinator,
-                entry.runtime_data.device_id,
+                device_id,
                 entry.runtime_data.device,
             ),
         ]
     )
+
+
+class SamsungMDCPanelStateSensor(SamsungMDCEntity, SensorEntity):
+    """Enum sensor reporting the display panel state."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_translation_key = "panel_state"
+    _attr_name = "Panel state"
+    _attr_icon = "mdi:television"
+    _attr_options: ClassVar[list[str]] = [state.value for state in PanelState]
+
+    def __init__(
+        self,
+        coordinator: SamsungMDCDataUpdateCoordinator,
+        device_id: str,
+    ) -> None:
+        """Initialize panel state sensor."""
+        super().__init__(coordinator, device_id)
+        self._attr_unique_id = f"{device_id}-panel-state"
+
+    @property
+    def native_value(self) -> str:
+        """Return the panel state."""
+        return self.coordinator.panel_state.value
 
 
 class SamsungMDCTickerMessageText(SamsungMDCEntity, TextEntity):
