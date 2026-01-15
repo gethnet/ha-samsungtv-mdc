@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -18,7 +19,12 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_config_entry_ids
 from homeassistant.util import dt as dt_util
 from samsung_mdc.commands import TICKER
-from samsung_mdc.exceptions import NAKError
+from samsung_mdc.exceptions import (
+    MDCReadTimeoutError,
+    MDCResponseError,
+    MDCTimeoutError,
+    NAKError,
+)
 
 from .const import (
     CONF_DISPLAY_ID,
@@ -58,6 +64,7 @@ type SamsungTVMDCConfigEntry = ConfigEntry[SamsungTVMDCData]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 _MIN_TICKER_FIELDS = 14
 _LONG_MESSAGE_THRESHOLD = 80
+_LOGGER = logging.getLogger(__name__)
 
 
 def _entry_value(entry: ConfigEntry, key: str, default: Any) -> Any:
@@ -114,8 +121,11 @@ async def async_unload_entry(
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    if unload_ok and getattr(entry, "runtime_data", None):
-        await entry.runtime_data.device.async_close()
+    if getattr(entry, "runtime_data", None):
+        try:
+            await entry.runtime_data.device.async_close()
+        finally:
+            entry.runtime_data = None  # type: ignore[assignment]
 
     if unload_ok and not hass.config_entries.async_entries(DOMAIN):
         _async_unregister_services(hass)
@@ -196,7 +206,20 @@ async def _async_handle_set_ticker(call: ServiceCall) -> None:
         runtime.coordinator.data.ticker or await runtime.device.async_ticker()
     )
     ticker_data = _ticker_data_from_call(call, current_ticker)
-    await runtime.device.async_set_ticker(ticker_data)
+    try:
+        await runtime.device.async_set_ticker(ticker_data)
+    except (
+        MDCTimeoutError,
+        MDCReadTimeoutError,
+        MDCResponseError,
+        OSError,
+        ConnectionError,
+    ) as err:
+        _LOGGER.warning(
+            "Failed to set ticker for %s: %s", entry.title or entry.entry_id, err
+        )
+        msg = "Ticker update failed; device unreachable"
+        raise ServiceValidationError(msg) from err
     await runtime.coordinator.async_request_refresh()
 
 

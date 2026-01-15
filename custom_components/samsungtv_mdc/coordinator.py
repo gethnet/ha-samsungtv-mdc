@@ -83,29 +83,49 @@ class SamsungMDCDevice:
             await self._client.close()
 
     async def async_set_power(self, state: commands.POWER.POWER_STATE) -> None:
-        """Set display power state."""
-        await self._call("power", [state])
+        """Set display power state with graceful error logging."""
+        try:
+            await self._call("power", [state])
+        except Exception:
+            self._logger.exception("Failed to set power for %s", self._target)
+            raise
 
     async def async_set_volume(self, volume: int) -> None:
-        """Set display volume (0-100)."""
-        await self._call("volume", [volume])
+        """Set display volume (0-100) with graceful error logging."""
+        try:
+            await self._call("volume", [volume])
+        except Exception:
+            self._logger.exception("Failed to set volume for %s", self._target)
+            raise
 
     async def async_volume_step(
         self, direction: commands.VOLUME_CHANGE.CHANGE_TO
     ) -> None:
-        """Step volume up/down."""
-        await self._call("volume_change", [direction])
+        """Step volume up/down with graceful error logging."""
+        try:
+            await self._call("volume_change", [direction])
+        except Exception:
+            self._logger.exception("Failed to step volume for %s", self._target)
+            raise
 
     async def async_set_mute(self, muted: bool) -> None:  # noqa: FBT001
-        """Set mute state."""
+        """Set mute state with graceful error logging."""
         state = commands.MUTE.MUTE_STATE.ON if muted else commands.MUTE.MUTE_STATE.OFF
-        await self._call("mute", [state])
+        try:
+            await self._call("mute", [state])
+        except Exception:
+            self._logger.exception("Failed to set mute for %s", self._target)
+            raise
 
     async def async_set_input_source(
         self, source: commands.INPUT_SOURCE.INPUT_SOURCE_STATE
     ) -> None:
-        """Set input source."""
-        await self._call("input_source", [source])
+        """Set input source with graceful error logging."""
+        try:
+            await self._call("input_source", [source])
+        except Exception:
+            self._logger.exception("Failed to set input source for %s", self._target)
+            raise
 
     async def async_status(self) -> tuple[Any, ...]:
         """Fetch basic status."""

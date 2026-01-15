@@ -35,6 +35,22 @@ class _StubCoordinator:
         self.refresh_requested = True
 
 
+class _FailingDevice:
+    """Device stub that raises when writing ticker."""
+
+    def __init__(self, ticker: Any) -> None:
+        self._ticker = ticker
+        self.calls: list[list] = []
+
+    async def async_set_ticker(self, data: list) -> None:
+        self.calls.append(data)
+        err_msg = "offline"
+        raise ConnectionError(err_msg)
+
+    async def async_ticker(self) -> Any:
+        return self._ticker
+
+
 class _StubDevice:
     """Device stub that records ticker updates."""
 
@@ -71,6 +87,13 @@ def _base_entry(hass: HomeAssistant, ticker: Any) -> MockConfigEntry:
         coordinator=coordinator,
         device_id=entry.unique_id or "device-id",
     )
+    return entry
+
+
+def _entry_with_failing_device(hass: HomeAssistant, ticker: Any) -> MockConfigEntry:
+    """Create a mock config entry whose device fails on ticker set."""
+    entry = _base_entry(hass, ticker)
+    entry.runtime_data.device = _FailingDevice(ticker)
     return entry
 
 
@@ -123,6 +146,29 @@ async def test_set_ticker_updates_device_and_refreshes(
     written = device.calls[-1]
     assert written[13] == "hello world"
     assert coordinator.refresh_requested
+
+
+@pytest.mark.asyncio
+async def test_set_ticker_errors_surface_as_validation_error(
+    hass_asyncio: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Service wraps MDC errors into ServiceValidationError and logs."""
+    entry = _entry_with_failing_device(hass_asyncio, _ticker_tuple("old"))
+    await async_setup(hass_asyncio, {})
+
+    with pytest.raises(ServiceValidationError):
+        await hass_asyncio.services.async_call(
+            DOMAIN,
+            "set_ticker",
+            {"config_entry_id": entry.entry_id, "message": "hello"},
+            blocking=True,
+        )
+
+    assert any(
+        "Failed to set ticker" in rec.message
+        for rec in caplog.records
+        if rec.name.endswith("custom_components.samsungtv_mdc")
+    )
 
 
 @pytest.mark.asyncio

@@ -44,6 +44,15 @@ class _DummyClient:
         self.closed = True
 
 
+class _FailingClient(_DummyClient):
+    """Client that fails on volume change to exercise logging path."""
+
+    async def volume_change(
+        self, _display_id: int, _data: list[commands.VOLUME_CHANGE.CHANGE_TO]
+    ) -> None:
+        raise MDCResponseError(*_EMPTY_RESPONSE_ARGS)
+
+
 @pytest.mark.asyncio
 async def test_device_reconnects_after_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """Device recreates client after a recoverable MDC timeout."""
@@ -104,6 +113,27 @@ async def test_device_ignores_empty_response_when_setting_power(
     assert created_clients[0].closed
     assert created_clients[0].calls == [("power", 1, [commands.POWER.POWER_STATE.ON])]
     assert created_clients[1].calls == []
+
+
+@pytest.mark.asyncio
+async def test_device_logs_and_raises_on_volume_step_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Volume step errors are logged and propagated."""
+
+    def _client_factory(
+        target: str, timeout: float | None = None, pin: str | None = None
+    ):
+        return _FailingClient()
+
+    monkeypatch.setattr(coordinator, "MDC", _client_factory)
+
+    device = SamsungMDCDevice("example.com", 1, DEFAULT_PORT, None, DEFAULT_TIMEOUT)
+
+    with pytest.raises(MDCResponseError):
+        await device.async_volume_step(commands.VOLUME_CHANGE.CHANGE_TO.UP)
+
+    assert any("Failed to step volume" in rec.message for rec in caplog.records)
 
 
 @pytest.mark.asyncio
